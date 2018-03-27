@@ -89,18 +89,16 @@ def tool_row_constructor(record):
     page_name= tool_name.translate(punctuation_translator)
     tool_page_name = '[[iifwiki:tools:{}|{}]]'.format(page_name, tool_name)
 
-    if 'Category' not in record['fields']:
-        record['fields']['Category'] = [""]
-    if 'Findings summarized' not in record['fields']:
-        record['fields']['Findings summarized'] = [""]
+    category = record['fields'].get('Category', [""])
+    findings = record['fields'].get('Findings summarized', [""])
 
     if 'Theories' not in record['fields']:
         theory_names = ''
     else:
         theory_names = [theories_table.get(theory_id)['fields']['Theory'] for
                         theory_id in record['fields']['Theories']]
-    row = "| " + tool_page_name + " | " + record['fields']['Category'][0] + " | " +\
-        record['fields']['Findings summarized'][0].rstrip() + " | " + ', '.join(theory_names) + " |\n"
+    row = "| " + tool_page_name + " | " + category[0] + " | " +\
+        findings[0].rstrip() + " | " + ', '.join(theory_names) + " |\n"
     return row
 
 
@@ -112,12 +110,9 @@ def ftse_row_constructor(record):
     """
     company_name = record['fields']['Company [(cite:LSE)]']
 
-    if 'industry' not in record['fields']:
-        record['fields']['industry'] = ""
-    if 'Details' not in record['fields']:
-        record['fields']['Details'] = ""
-    if 'Outcomes' not in record['fields']:
-        record['fields']['Outcomes'] = ""
+    industry = record['fields'].get('industry', '')
+    details = record['fields'].get('Details', '')
+    outcomes = record['fields'].get('Outcomes', '')
 
     if 'Donation Matching' not in record['fields']:
         donation = ""
@@ -136,9 +131,9 @@ def ftse_row_constructor(record):
     else:
         ref = ''
 
-    row = "| " + company_name + " | " + record['fields']['industry'] + " | " +\
-          donation + " | " + payroll + " | " + record['fields']['Details'] + " | " +\
-          record['fields']['Outcomes'] + " | " + ref + " |\n"
+    row = "| " + company_name + " | " + industry + " | " +\
+          donation + " | " + payroll + " | " + details + " | " +\
+          outcomes + " | " + ref + " |\n"
     return row
 
 
