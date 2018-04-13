@@ -6,6 +6,7 @@ with Airtable, i.e. creating new pages or updating the existing ones.
 import os
 import dokuwiki as dw
 import wikicontents
+import json
 
 
 # in addition to tables that are associated with wiki pages,
@@ -14,22 +15,17 @@ import wikicontents
 class WikiManager:
 
     def __init__(self, version):
-        # for DokuWiki we need url, user name and password
-        usr = "katja"  # this has to be added to the remoteuser in config:authentication
-        if version == 'official':
-            # the official DW
-            url = "http://innovationsinfundraising.org/"
-            pss = os.environ['DOKUWIKI_PASS']
-        elif version == 'test':
-            # local testing ground
-            url = "http://localhost/~katja/dokuwiki"
-            pss = os.environ['DOKUWIKI_PASS_TEST']
-        else:
-            print('Unknown version specified, choose from: "official" or "test"')
+        with open('config.json', 'r') as f:
+            config = json.load(f)
+        if version not in ["official", "test"]:
+            print('Unknown version specified, choose from: "official" or "test".')
             return
-        self.wiki = dw.DokuWiki(url, usr, pss)
-        self.user_key = os.environ['AIRTABLE_API_KEY']
-        self.table = None
+        else:
+            self.wiki = dw.DokuWiki(config[version]["wiki_url"],
+                                    config[version]["username"],
+                                    os.environ[config[version]["password_key"]])
+            self.user_key = os.environ['AIRTABLE_API_KEY']
+            self.table = None
 
     def setup_table(self, table_name):
         if table_name == 'tools_public_sample':

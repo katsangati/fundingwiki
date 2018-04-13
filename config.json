@@ -1,0 +1,12 @@
+{
+  "official": {
+    "username": "katja",
+    "password_key": "DOKUWIKI_PASS",
+    "wiki_url": "http://innovationsinfundraising.org/"
+  },
+  "test": {
+    "username": "katja",
+    "password_key": "DOKUWIKI_PASS_TEST",
+    "wiki_url": "http://localhost/~katja/dokuwiki"
+  }
+}
