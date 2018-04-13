@@ -1,9 +1,9 @@
 """
-This is a script that defines the main classes for manipulating Airtable data and
-redirecting it to the Innovations in Fundraising DokuWiki (or its local test version).
+This is a script for manipulating Airtable data and redirecting it to the Innovations in Fundraising DokuWiki
+(or its local test version). It defines classes that represent Airtable tables that feed DW content
+(as tables or pages).
 """
 import airtable as at
-import os
 from functools import reduce
 import string
 import re
@@ -12,34 +12,31 @@ import time
 
 # define a punctuation stripper for using later in pagename constructors
 punctuation_translator = str.maketrans('', '', string.punctuation)
-user_key = os.environ['AIRTABLE_API_KEY']
-
-"""
-Define classes that represent DW tables fed by Airtable content
-"""
 
 
 class Table:
+
     def __init__(self, wiki):
         self.wiki = wiki
-        self.base_name = None
-        self.table_name = None
+        self.airtable = None
         self.records = None
-        self.page_link = None
-        self.div_id = None
+        self.dw_table_page = None
+        self.included_in = None
         self.main_column = None
         self.header = None
+        self.linked_pages = None
+        # if the table feeds DW pages
+        if self.linked_pages:
+            self.dw_page_template = None
+            self.dw_page_name_column = None
+            self.root_namespace = None
 
-    def format_table(self, wiki_page):
-        start_tag = '<div id="{}">'.format(self.div_id)
-        end_tag = '</div>'
-        start_index = wiki_page.find(start_tag) + len(start_tag)
-        end_index = wiki_page.find(end_tag)
+    def construct_row(self, record):
+        # TODO: make a more reasonable default
+        row = record
+        return row
 
-        # placement_tag = 'TABLEHERE'
-        # start_index = page_content.find(placement_tag)
-        # end_index = start_index + len(placement_tag)
-
+    def format_table(self):
         # initialize table content with the header
         table_content = self.header
         # construct the rows for all available records using the corresponding constructor function
@@ -49,36 +46,52 @@ class Table:
                 pass
             else:
                 table_content += self.construct_row(record)
-
-        # combine the table with the rest of the page
-        new_page = wiki_page[:start_index] + table_content + wiki_page[end_index:]
-        return new_page
+        return table_content
 
     def set_table_page(self):
-        wiki_page = self.wiki.pages.get(self.page_link)
-        new_page = self.format_table(wiki_page)
-        self.wiki.pages.set(self.page_link, new_page)
+        new_page = self.format_table()
+        self.wiki.pages.set(self.dw_table_page, new_page)
 
-    def construct_row(self, record):
-        row = record
-        return row
+    def create_page(self, record):
+        # TODO: make a more reasonable default
+        return record + self.dw_page_template
 
-    def reload_records(self):
-        self.records = at.Airtable(self.base_name, self.table_name, user_key).get_all()
+    def format_pages(self, records):
+        new_pages = {}
+        for record in records:
+            if (self.main_column not in record['fields']) or (self.dw_page_name_column not in record['fields']):
+                pass
+            else:
+                page_name = record['fields'][self.dw_page_name_column]
+                clean_page_name = page_name.translate(punctuation_translator)
+                full_page_name = self.root_namespace + clean_page_name
+                page = self.create_page(record)
+                new_pages[full_page_name] = page
+        return new_pages
+
+    def set_pages(self):
+        new_pages = self.format_pages(self.records)
+        # this has to be done with a break of at least 5s
+        for page in new_pages:
+            self.wiki.pages.set(page, new_pages[page])
+            time.sleep(5)
 
 
 class ToolTable(Table):
-    def __init__(self, wiki):
+    def __init__(self, wiki, base_name, table_name, user_key):
         super(ToolTable, self).__init__(wiki)
-        self.base_name = 'appBzOSifwBqSuVfH'
-        self.table_name = 'tools_public_sample'
-        self.records = at.Airtable(self.base_name, self.table_name, user_key).get_all()
-        self.linked_tables = {'theories': at.Airtable(self.base_name, self.table_name, user_key),
-                              'papers': at.Airtable(self.base_name, self.table_name, user_key)}
-        self.page_link = 'tools:tools'
-        self.div_id = 'tool_table'
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+        self.dw_table_page = 'tables:tools'
+        self.included_in = 'tools:tools'
         self.main_column = 'Toolname'
         self.header = "\n^ Tool name ^ Category ^ Description ^ Key papers ^ Theories ^\n"
+        self.linked_pages = True
+        self.dw_page_template = '==== TOOLNAME ====\n\n**Category**: CATEGORY \n\n**Sub-category**: SUBCATEGORY\n\n' \
+                             '**Relevant theories**: THEORIES\n\n**Type of evidence**: EVIDENCE\n\\\\\n\\\\\n' \
+                             '=== Main findings ===\n\nFINDINGS\n\\\\\n\\\\\n=== Key papers ===PAPERS'
+        self.dw_page_name_column = 'Toolname'
+        self.root_namespace = 'tools:'
 
     def construct_row(self, record):
         """
@@ -88,7 +101,7 @@ class ToolTable(Table):
         """
         tool_name = record['fields']['Toolname']
         tool_page_name = tool_name.translate(punctuation_translator)
-        tool_page_link = '[[tools:{}|{}]]'.format(tool_page_name, tool_name)
+        tool_dw_table_page = '[[tools:{}|{}]]'.format(tool_page_name, tool_name)
 
         category = record['fields'].get('Category', [""])
         findings = record['fields'].get('Findings summarized', [""])
@@ -96,33 +109,81 @@ class ToolTable(Table):
         if 'Theories' not in record['fields']:
             theory_names = ''
         else:
-            theory_names = [self.linked_tables['theories'].get(theory_id)['fields']['Theory'] for
+            theory_names = [self.airtable.get(theory_id)['fields']['Theory'] for
                             theory_id in record['fields']['Theories']]
 
         key_papers = []
         for paper_id in record['fields']['Keypapers']:
-            paper_name = self.linked_tables['papers'].get(paper_id)['fields']['parencite']
-            title = self.linked_tables['papers'].get(paper_id)['fields']['Title']
+            paper_name = self.airtable.get(paper_id)['fields']['parencite']
+            title = self.airtable.get(paper_id)['fields']['Title']
             paper_page_name = title.translate(punctuation_translator)
-            paper_page_link = '[[papers:{}|{}]]'.format(paper_page_name, paper_name)
-            key_papers.append(paper_page_link)
+            paper_dw_table_page = '[[papers:{}|{}]]'.format(paper_page_name, paper_name)
+            key_papers.append(paper_dw_table_page)
 
-        row = "| " + tool_page_link + " | " + category[0] + " | " +\
+        row = "| " + tool_dw_table_page + " | " + category[0] + " | " +\
             findings[0].rstrip() + " | " + '; '.join(key_papers) + " | " + ', '.join(theory_names) + " |\n"
         return row
 
+    def create_page(self, record):
+        """
+        Construct a page for each tool.
+        :param record: a single record from the Airtable
+        :return: a formatted page
+        """
+        tn = record['fields']['Toolname']
+
+        if 'Category' not in record['fields']:
+            cat = ""
+        else:
+            cat = record['fields']['Category'][0]
+
+        if 'Subcategory' not in record['fields']:
+            subcat = ""
+        else:
+            subcat = record['fields']['Subcategory'][0]
+
+        if 'Theories' not in record['fields']:
+            theory_names = ''
+        else:
+            theory_names = ', '.join([self.airtable.get(theory_id)['fields']['Theory'] for
+                                      theory_id in record['fields']['Theories']])
+
+        if 'Types of evidence' not in record['fields']:
+            evid = ''
+        else:
+            evid = record['fields']['Types of evidence'][0]
+
+        if 'Findings summarized' not in record['fields']:
+            summary = record['fields']['Findings summarized'] = [""]
+        else:
+            summary = record['fields']['Findings summarized'][0].rstrip()
+
+        papers = []
+        for paper_id in record['fields']['Keypapers']:
+            p_title = self.airtable.get(paper_id)['fields']['Title']
+            p_url = self.airtable.get(paper_id)['fields']['URL']
+            papers.append('[[' + p_url + ' | ' + p_title + ']]')
+
+        paper_items = '\n\n * ' + '\n\n * '.join(papers) + '\n'
+
+        replacements = ('TOOLNAME', tn), ('CATEGORY', cat), ('SUBCATEGORY', subcat), \
+                       ('THEORIES', theory_names), ('EVIDENCE', evid), ('FINDINGS', summary), \
+                       ('PAPERS', paper_items)
+        tool_page = reduce(lambda a, kv: a.replace(*kv, 1), replacements, self.dw_page_template)
+        return tool_page
+
 
 class FtseTable(Table):
-    def __init__(self, wiki):
+    def __init__(self, wiki, base_name, table_name, user_key):
         super(FtseTable, self).__init__(wiki)
-        self.base_name = 'apprleNrkR7dTtW60'
-        self.table_name = 'ftse100+givingpolicies'
-        self.records = at.Airtable(self.base_name, self.table_name, user_key).get_all()
-        self.page_link = 'iifwiki:employee_giving_schemes'
-        self.div_id = 'ftse_table'
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+        self.dw_table_page = 'tables:employee_giving_schemes'
+        self.included_in = 'iifwiki:employee_giving_schemes'
         self.main_column = 'Company [(cite:LSE)]'
         self.header = "\n^ Company ^ Sector ^ Donation Matching ^ Payroll Giving Provider ^ Details ^ " \
                       "Outcomes ^ Reference ^\n"
+        self.linked_pages = False
 
     def construct_row(self, record):
         """
@@ -160,16 +221,17 @@ class FtseTable(Table):
 
 
 class ExperimentTable(Table):
-    def __init__(self, wiki):
+
+    def __init__(self, wiki, base_name, table_name, user_key):
         super(ExperimentTable, self).__init__(wiki)
-        self.base_name = 'appBzOSifwBqSuVfH'
-        self.table_name = 'Charity experiments'
-        self.records = at.Airtable(self.base_name, self.table_name, user_key).get_all()
-        self.page_link = 'iifwiki:dataexperiments'
-        self.div_id = 'experiments_table'
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+        self.dw_table_page = 'tables:data_experiments'
+        self.included_in = 'iifwiki:dataexperiments'
         self.main_column = 'Experiment'
         self.header = "\n^ Experiment ^ N ^ Endowment ^ Share donating ^ Share donated ^ Mean donation ^\
                             SD ^ SD/Mean ^ Effect Size ^ References ^\n"
+        self.linked_pages = False
 
     def construct_row(self, record):
         """
@@ -195,16 +257,17 @@ class ExperimentTable(Table):
 
 
 class ExperienceTable(Table):
-    def __init__(self, wiki):
+
+    def __init__(self, wiki, base_name, table_name, user_key):
         super(ExperienceTable, self).__init__(wiki)
-        self.base_name = 'appBzOSifwBqSuVfH'
-        self.table_name = 'Experiences'
-        self.records = at.Airtable(self.base_name, self.table_name, user_key).get_all()
-        self.page_link = 'iifwiki:experiences_of_workplace_activists'
-        self.div_id = 'experiences_table'
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+        self.dw_table_page = 'tables:experiences_of_workplace_activists'
+        self.included_in = 'iifwiki:experiences_of_workplace_activists'
         self.main_column = 'Name'
         self.header = "\n^ Name ^ Organisation ^ Employees ^ " \
                       "Charity ^ Description ^ Participants ^ Raised ^ Results ^\n"
+        self.linked_pages = False
 
     def construct_row(self, record):
         """
@@ -234,16 +297,17 @@ class ExperienceTable(Table):
 
 
 class ThirdSectorTable(Table):
-    def __init__(self, wiki):
+
+    def __init__(self, wiki, base_name, table_name, user_key):
         super(ThirdSectorTable, self).__init__(wiki)
-        self.base_name = 'appBzOSifwBqSuVfH'
-        self.table_name = 'Third sector'
-        self.records = at.Airtable(self.base_name, self.table_name, user_key).get_all()
-        self.page_link = 'iifwiki:third_sector_infrastructure_details'
-        self.div_id = 'third_sector_table'
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+        self.dw_table_page = 'tables:third_sector_infrastructure_details'
+        self.included_in = 'iifwiki:third_sector_infrastructure_details'
         self.main_column = 'Name'
         self.header = "\n^ Name ^ Whom does it help? ^ Role ^ Example activity ^ " \
                       "Size ^ Established ^ CEO/Chairman ^\n"
+        self.linked_pages = False
 
     def construct_row(self, record):
         """
@@ -270,15 +334,23 @@ class ThirdSectorTable(Table):
 
 
 class PapersTable(Table):
-    def __init__(self, wiki):
+
+    def __init__(self, wiki, base_name, table_name, user_key):
         super(PapersTable, self).__init__(wiki)
-        self.base_name = 'appBzOSifwBqSuVfH'
-        self.table_name = 'papers_mass'
-        self.records = at.Airtable(self.base_name, self.table_name, user_key).get_all()
-        self.page_link = 'papers:papers'
-        self.div_id = 'papers_table'
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+        self.dw_table_page = 'tables:papers'
+        self.included_in = 'papers:papers'
         self.main_column = 'parencite'
         self.header = "\n^ Reference ^ Type of evidence ^ Sample size ^ Effect size ^ Link ^\n"
+        self.linked_pages = True
+        self.dw_page_template = '====PAPERTITLE====\n\n<div class="full_reference">REFERENCE</div>\n\n' \
+                             '<div class="evidence_type">**Type of evidence**: EVIDENCE</div>\n\n' \
+                             '<div class="paper_keywords">**Keywords**: KEYWORDS</div>\n\\\\\n' \
+                             '===Paper summary===\n\n<div class="paper_summary">SUMMARY</div>\n\\\\\n' \
+                             '===Discussion===\n\n<div class="paper_discussion">DISCUSSION</div>'
+        self.dw_page_name_column = 'Title'
+        self.root_namespace = 'papers:'
 
     def construct_row(self, record):
         """
@@ -290,7 +362,7 @@ class PapersTable(Table):
         title = record['fields']['Title']
 
         paper_page_name = title.translate(punctuation_translator)
-        paper_page_link = '[[papers:{}|{}]]'.format(paper_page_name, paper_name)
+        paper_dw_table_page = '[[papers:{}|{}]]'.format(paper_page_name, paper_name)
 
         evidence = record['fields'].get('Type of evidence', [''])
         size = record['fields'].get('Sample size', '')
@@ -301,128 +373,8 @@ class PapersTable(Table):
         else:
             link = '[[{}|{}]]'.format(record['fields']['URL'], 'Full text')
 
-        row = "| " + " | ".join([paper_page_link, evidence[0], str(size), str(effect), link]) + " |\n"
+        row = "| " + " | ".join([paper_dw_table_page, evidence[0], str(size), str(effect), link]) + " |\n"
         return row
-
-
-"""
-Define classes that represent pages fed by Airtable content
-"""
-
-
-class DokuWikiPage:
-    def __init__(self, wiki):
-        self.wiki = wiki
-        self.page_template = None
-        self.records = None
-        self.main_column = None
-        self.page_name_column = None
-        self.root_namespace = None
-
-    def create_page(self, record):
-        return record + self.page_template
-
-    def set_pages(self):
-        page_names = []
-        pages = []
-
-        for record in self.records:
-            if (self.main_column not in record['fields']) or (self.page_name_column not in record['fields']):
-                pass
-            else:
-                page_name = record['fields'][self.page_name_column]
-                clean_page_name = page_name.translate(punctuation_translator)
-                full_page_name = self.root_namespace + clean_page_name
-                page_names.append(full_page_name)
-                page = self.create_page(record)
-                pages.append(page)
-
-        # this has to be done with a break of at least 5s
-        n_pages = len(page_names)
-        for i in range(n_pages):
-            self.wiki.pages.set(page_names[i], pages[i])
-            time.sleep(5)
-
-
-class ToolPage(DokuWikiPage):
-    def __init__(self, wiki):
-        super(ToolPage, self).__init__(wiki)
-        self.base_name = 'appBzOSifwBqSuVfH'
-        self.table_name = 'tools_public_sample'
-        self.records = at.Airtable(self.base_name, self.table_name, user_key).get_all()
-        self.linked_tables = {'theories': at.Airtable(self.base_name, self.table_name, user_key),
-                              'papers': at.Airtable(self.base_name, self.table_name, user_key)}
-        self.page_template = '==== TOOLNAME ====\n\n**Category**: CATEGORY \n\n**Sub-category**: SUBCATEGORY\n\n' \
-                             '**Relevant theories**: THEORIES\n\n**Type of evidence**: EVIDENCE\n\\\\\n\\\\\n' \
-                             '=== Main findings ===\n\nFINDINGS\n\\\\\n\\\\\n=== Key papers ===PAPERS'
-        self.main_column = 'Toolname'
-        self.page_name_column = 'Toolname'
-        self.root_namespace = 'tools:'
-
-    def create_page(self, record):
-        """
-        Construct a page for each tool.
-        :param record: a single record from the Airtable
-        :return: a formatted page
-        """
-        tn = record['fields']['Toolname']
-
-        if 'Category' not in record['fields']:
-            cat = ""
-        else:
-            cat = record['fields']['Category'][0]
-
-        if 'Subcategory' not in record['fields']:
-            subcat = ""
-        else:
-            subcat = record['fields']['Subcategory'][0]
-
-        if 'Theories' not in record['fields']:
-            theory_names = ''
-        else:
-            theory_names = ', '.join([self.linked_tables['theories'].get(theory_id)['fields']['Theory'] for
-                                      theory_id in record['fields']['Theories']])
-
-        if 'Types of evidence' not in record['fields']:
-            evid = ''
-        else:
-            evid = record['fields']['Types of evidence'][0]
-
-        if 'Findings summarized' not in record['fields']:
-            summary = record['fields']['Findings summarized'] = [""]
-        else:
-            summary = record['fields']['Findings summarized'][0].rstrip()
-
-        papers = []
-        for paper_id in record['fields']['Keypapers']:
-            p_title = self.linked_tables['papers'].get(paper_id)['fields']['Title']
-            p_url = self.linked_tables['papers'].get(paper_id)['fields']['URL']
-            papers.append('[[' + p_url + ' | ' + p_title + ']]')
-
-        paper_items = '\n\n * ' + '\n\n * '.join(papers) + '\n'
-
-        replacements = ('TOOLNAME', tn), ('CATEGORY', cat), ('SUBCATEGORY', subcat), \
-                       ('THEORIES', theory_names), ('EVIDENCE', evid), ('FINDINGS', summary), \
-                       ('PAPERS', paper_items)
-        tool_page = reduce(lambda a, kv: a.replace(*kv, 1), replacements, self.page_template)
-        return tool_page
-
-
-class PaperPage(DokuWikiPage):
-    def __init__(self, wiki):
-        super(PaperPage, self).__init__(wiki)
-        self.base_name = 'appBzOSifwBqSuVfH'
-        self.table_name = 'papers_mass'
-        self.records = at.Airtable(self.base_name, self.table_name, user_key).get_all()
-        self.page_template = '====PAPERTITLE====\n\n<div class="full_reference">REFERENCE</div>\n\n' \
-                             '<div class="evidence_type">**Type of evidence**: EVIDENCE</div>\n\n' \
-                             '<div class="paper_keywords">**Keywords**: KEYWORDS</div>\n\\\\\n' \
-                             '===Paper summary===\n\n<div class="paper_summary">SUMMARY</div>\n\\\\\n' \
-                             '===Discussion===\n\n<div class="paper_discussion">DISCUSSION</div>'
-
-        self.main_column = 'parencite'
-        self.page_name_column = 'Title'
-        self.root_namespace = 'papers:'
 
     def create_page(self, record):
         """
@@ -449,11 +401,5 @@ class PaperPage(DokuWikiPage):
 
         replacements = ('PAPERTITLE', title), ('REFERENCE', reference), ('EVIDENCE', evidence[0]), \
                        ('KEYWORDS', keywords), ('SUMMARY', summary), ('DISCUSSION', discussion)
-        paper_page = reduce(lambda a, kv: a.replace(*kv, 1), replacements, self.page_template)
+        paper_page = reduce(lambda a, kv: a.replace(*kv, 1), replacements, self.dw_page_template)
         return paper_page
-
-# when a record gets updated in Airtable, its "Edited" field will be set to "checked"
-# we will regenerate the relevant page and reset the "Edited" field
-# record = airtable.match('Employee Id', 'DD13332454')
-# fields = {'Status': 'Fired'}
-# airtable.update(record['id'], fields)
