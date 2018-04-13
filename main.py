@@ -1,5 +1,7 @@
 import wikimanager
 
+used_tables = ['tools_public_sample', 'ftse100+givingpolicies', 'Charity experiments',
+               'Third sector', 'papers_mass']
 
 manager = wikimanager.WikiManager('official')
 # local test
@@ -12,4 +14,3 @@ manager.create_pages()
 
 manager.update_table()
 manager.update_pages()
-

@@ -16,15 +16,18 @@ punctuation_translator = str.maketrans('', '', string.punctuation)
 
 class Table:
 
-    def __init__(self, wiki):
+    def __init__(self, wiki, base_name, table_name, user_key):
         self.wiki = wiki
-        self.airtable = None
-        self.records = None
-        self.dw_table_page = None
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+
+        # self.airtable = None
+        # self.records = None
+        self.dw_table_page = 'tables:test'
         self.included_in = None
         self.main_column = None
-        self.header = None
-        self.linked_pages = None
+        self.header = ''
+        self.linked_pages = True
         # if the table feeds DW pages
         if self.linked_pages:
             self.dw_page_template = None
@@ -32,8 +35,11 @@ class Table:
             self.root_namespace = None
 
     def construct_row(self, record):
-        # TODO: make a more reasonable default
-        row = record
+        row = "| "
+        for key, value in record['fields'].items():
+            row += repr(value)
+            row += " | "
+        row += " |\n"
         return row
 
     def format_table(self):
@@ -42,7 +48,7 @@ class Table:
         # construct the rows for all available records using the corresponding constructor function
         for record in self.records:
             # we only consider records in which the main column is not empty
-            if self.main_column not in record['fields']:
+            if (self.main_column is not None) and (self.main_column not in record['fields']):
                 pass
             else:
                 table_content += self.construct_row(record)
@@ -53,20 +59,35 @@ class Table:
         self.wiki.pages.set(self.dw_table_page, new_page)
 
     def create_page(self, record):
-        # TODO: make a more reasonable default
-        return record + self.dw_page_template
+        """
+        Construct a default page for a single record.
+        :param record: a single record from the Airtable
+        :return: a formatted page
+        """
+        page = ""
+        for key, value in record['fields'].items():
+            page += key.upper() + "\n\n"
+            page += repr(value) + "\n"
+            page += "\n"
+        return page
 
     def format_pages(self, records):
         new_pages = {}
-        for record in records:
-            if (self.main_column not in record['fields']) or (self.dw_page_name_column not in record['fields']):
-                pass
-            else:
-                page_name = record['fields'][self.dw_page_name_column]
-                clean_page_name = page_name.translate(punctuation_translator)
-                full_page_name = self.root_namespace + clean_page_name
-                page = self.create_page(record)
-                new_pages[full_page_name] = page
+        if (self.main_column is None) and (self.dw_page_name_column is None):
+            record = records[0]
+            page_name = 'test:test_page'
+            page = self.create_page(record)
+            new_pages[page_name] = page
+        else:
+            for record in records:
+                if (self.main_column not in record['fields']) or (self.dw_page_name_column not in record['fields']):
+                    pass
+                else:
+                    page_name = record['fields'][self.dw_page_name_column]
+                    clean_page_name = page_name.translate(punctuation_translator)
+                    full_page_name = self.root_namespace + clean_page_name
+                    page = self.create_page(record)
+                    new_pages[full_page_name] = page
         return new_pages
 
     def set_pages(self):
@@ -79,7 +100,7 @@ class Table:
 
 class ToolTable(Table):
     def __init__(self, wiki, base_name, table_name, user_key):
-        super(ToolTable, self).__init__(wiki)
+        super(ToolTable, self).__init__(wiki, base_name, table_name, user_key)
         self.airtable = at.Airtable(base_name, table_name, user_key)
         self.records = self.airtable.get_all()
         self.dw_table_page = 'tables:tools'
@@ -88,8 +109,8 @@ class ToolTable(Table):
         self.header = "\n^ Tool name ^ Category ^ Description ^ Key papers ^ Theories ^\n"
         self.linked_pages = True
         self.dw_page_template = '==== TOOLNAME ====\n\n**Category**: CATEGORY \n\n**Sub-category**: SUBCATEGORY\n\n' \
-                             '**Relevant theories**: THEORIES\n\n**Type of evidence**: EVIDENCE\n\\\\\n\\\\\n' \
-                             '=== Main findings ===\n\nFINDINGS\n\\\\\n\\\\\n=== Key papers ===PAPERS'
+                                '**Relevant theories**: THEORIES\n\n**Type of evidence**: EVIDENCE\n\\\\\n\\\\\n' \
+                                '=== Main findings ===\n\nFINDINGS\n\\\\\n\\\\\n=== Key papers ===PAPERS'
         self.dw_page_name_column = 'Toolname'
         self.root_namespace = 'tools:'
 
@@ -175,7 +196,7 @@ class ToolTable(Table):
 
 class FtseTable(Table):
     def __init__(self, wiki, base_name, table_name, user_key):
-        super(FtseTable, self).__init__(wiki)
+        super(FtseTable, self).__init__(wiki, base_name, table_name, user_key)
         self.airtable = at.Airtable(base_name, table_name, user_key)
         self.records = self.airtable.get_all()
         self.dw_table_page = 'tables:employee_giving_schemes'
@@ -223,7 +244,7 @@ class FtseTable(Table):
 class ExperimentTable(Table):
 
     def __init__(self, wiki, base_name, table_name, user_key):
-        super(ExperimentTable, self).__init__(wiki)
+        super(ExperimentTable, self).__init__(wiki, base_name, table_name, user_key)
         self.airtable = at.Airtable(base_name, table_name, user_key)
         self.records = self.airtable.get_all()
         self.dw_table_page = 'tables:data_experiments'
@@ -259,7 +280,7 @@ class ExperimentTable(Table):
 class ExperienceTable(Table):
 
     def __init__(self, wiki, base_name, table_name, user_key):
-        super(ExperienceTable, self).__init__(wiki)
+        super(ExperienceTable, self).__init__(wiki, base_name, table_name, user_key)
         self.airtable = at.Airtable(base_name, table_name, user_key)
         self.records = self.airtable.get_all()
         self.dw_table_page = 'tables:experiences_of_workplace_activists'
@@ -299,7 +320,7 @@ class ExperienceTable(Table):
 class ThirdSectorTable(Table):
 
     def __init__(self, wiki, base_name, table_name, user_key):
-        super(ThirdSectorTable, self).__init__(wiki)
+        super(ThirdSectorTable, self).__init__(wiki, base_name, table_name, user_key)
         self.airtable = at.Airtable(base_name, table_name, user_key)
         self.records = self.airtable.get_all()
         self.dw_table_page = 'tables:third_sector_infrastructure_details'
@@ -336,7 +357,7 @@ class ThirdSectorTable(Table):
 class PapersTable(Table):
 
     def __init__(self, wiki, base_name, table_name, user_key):
-        super(PapersTable, self).__init__(wiki)
+        super(PapersTable, self).__init__(wiki, base_name, table_name, user_key)
         self.airtable = at.Airtable(base_name, table_name, user_key)
         self.records = self.airtable.get_all()
         self.dw_table_page = 'tables:papers'
@@ -345,10 +366,10 @@ class PapersTable(Table):
         self.header = "\n^ Reference ^ Type of evidence ^ Sample size ^ Effect size ^ Link ^\n"
         self.linked_pages = True
         self.dw_page_template = '====PAPERTITLE====\n\n<div class="full_reference">REFERENCE</div>\n\n' \
-                             '<div class="evidence_type">**Type of evidence**: EVIDENCE</div>\n\n' \
-                             '<div class="paper_keywords">**Keywords**: KEYWORDS</div>\n\\\\\n' \
-                             '===Paper summary===\n\n<div class="paper_summary">SUMMARY</div>\n\\\\\n' \
-                             '===Discussion===\n\n<div class="paper_discussion">DISCUSSION</div>'
+                                '<div class="evidence_type">**Type of evidence**: EVIDENCE</div>\n\n' \
+                                '<div class="paper_keywords">**Keywords**: KEYWORDS</div>\n\\\\\n' \
+                                '===Paper summary===\n\n<div class="paper_summary">SUMMARY</div>\n\\\\\n' \
+                                '===Discussion===\n\n<div class="paper_discussion">DISCUSSION</div>'
         self.dw_page_name_column = 'Title'
         self.root_namespace = 'papers:'
 

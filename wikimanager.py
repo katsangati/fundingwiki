@@ -26,36 +26,52 @@ class WikiManager:
                                     os.environ[config[version]["password_key"]])
             self.user_key = os.environ['AIRTABLE_API_KEY']
             self.table = None
+            self.used_table_name = None
+            self.defined_tables = ['tools_public_sample', 'ftse100+givingpolicies',
+                                   'Charity experiments', 'Third sector', 'papers_mass']
 
     def setup_table(self, table_name):
         if table_name == 'tools_public_sample':
             table_base = 'appBzOSifwBqSuVfH'
             self.table = wikicontents.ToolTable(self.wiki, table_base, table_name, self.user_key)
+            self.used_table_name = table_name
 
         elif table_name == 'ftse100+givingpolicies':
             table_base = 'apprleNrkR7dTtW60'
             self.table = wikicontents.FtseTable(self.wiki, table_base, table_name, self.user_key)
+            self.used_table_name = table_name
 
         elif table_name == 'Charity experiments':
             table_base = 'appBzOSifwBqSuVfH'
             self.table = wikicontents.ExperimentTable(self.wiki, table_base, table_name, self.user_key)
+            self.used_table_name = table_name
 
         elif table_name == 'Third sector':
             table_base = 'appBzOSifwBqSuVfH'
             self.table = wikicontents.ThirdSectorTable(self.wiki, table_base, table_name, self.user_key)
+            self.used_table_name = table_name
 
         elif table_name == 'papers_mass':
             table_base = 'appBzOSifwBqSuVfH'
             self.table = wikicontents.PapersTable(self.wiki, table_base, table_name, self.user_key)
+            self.used_table_name = table_name
 
         else:
-            print('An interface to this table has not been implemented yet')
+            table_base = 'appBzOSifwBqSuVfH'
+            self.table = wikicontents.Table(self.wiki, table_base, table_name, self.user_key)
+            self.used_table_name = table_name
 
     def create_table(self):
         self.table.set_table_page()
+        if self.used_table_name not in self.defined_tables:
+            print("Go to '{}' in your DokuWiki to see the table. To change its formatting, "
+                  "please implement an appropriate class.".format(self.table.dw_table_page))
 
     def create_pages(self):
         self.table.set_pages()
+        if self.used_table_name not in self.defined_tables:
+            print("Go to 'test:test_page' in your DokuWiki to see the possible page content. "
+                  "To change its formatting, please implement an appropriate class.")
 
     def update_table(self):
         """Re-generate the full table on DW if any record has been modified.
