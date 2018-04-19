@@ -27,11 +27,11 @@ class WikiManager:
             self.user_key = os.environ['AIRTABLE_API_KEY']
             self.table = None
             self.used_table_name = None
-            self.defined_tables = ['tools_public_sample', 'ftse100+givingpolicies',
+            self.defined_tables = ['Tools', 'ftse100+givingpolicies', 'Categories',
                                    'Charity experiments', 'Third sector', 'papers_mass']
 
     def setup_table(self, table_name):
-        if table_name == 'tools_public_sample':
+        if table_name == 'Tools':
             table_base = 'appBzOSifwBqSuVfH'
             self.table = wikicontents.ToolTable(self.wiki, table_base, table_name, self.user_key)
             self.used_table_name = table_name
@@ -54,6 +54,11 @@ class WikiManager:
         elif table_name == 'papers_mass':
             table_base = 'appBzOSifwBqSuVfH'
             self.table = wikicontents.PapersTable(self.wiki, table_base, table_name, self.user_key)
+            self.used_table_name = table_name
+
+        elif table_name == 'Categories':
+            table_base = 'appBzOSifwBqSuVfH'
+            self.table = wikicontents.CategoryTable(self.wiki, table_base, table_name, self.user_key)
             self.used_table_name = table_name
 
         else:

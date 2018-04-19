@@ -14,6 +14,24 @@ import time
 punctuation_translator = str.maketrans('', '', string.punctuation)
 
 
+def get_linked_items(airtable, column_name, record, linked_column_name):
+    """
+    Fetch linked item names from a given column in a given record.
+    :param airtable: airtable object associated with the table
+    :param column_name: the name of the column that contains linked item ids
+    :param record: which record to fetch for
+    :param linked_column_name: the name of the column in a linked table that we use to retrieve meaningful item names
+    :return:
+    """
+    if column_name in record['fields']:
+        item_ids = record['fields']['Category']
+        item_names = [airtable.get(item_id)['fields'][linked_column_name] for item_id in item_ids]
+        items = ', '.join(item_names)
+    else:
+        items = ''
+    return items
+
+
 class Table:
 
     def __init__(self, wiki, base_name, table_name, user_key):
@@ -51,6 +69,7 @@ class Table:
             if (self.main_column is not None) and (self.main_column not in record['fields']):
                 pass
             else:
+                # print(record['fields']['Tool name'])
                 table_content += self.construct_row(record)
         return table_content
 
@@ -80,6 +99,7 @@ class Table:
             new_pages[page_name] = page
         else:
             for record in records:
+                # print(record['fields']['Tool name'])
                 if (self.main_column not in record['fields']) or (self.dw_page_name_column not in record['fields']):
                     pass
                 else:
@@ -105,13 +125,27 @@ class ToolTable(Table):
         self.records = self.airtable.get_all()
         self.dw_table_page = 'tables:tools'
         self.included_in = 'tools:tools'
-        self.main_column = 'Toolname'
-        self.header = "\n^ Tool name ^ Category ^ Description ^ Key papers ^ Theories ^\n"
+        self.main_column = 'Tool name'
+        self.header = "\n^ Tool name ^ Category ^ Description ^ Main findings ^ Key papers ^\n"
         self.linked_pages = True
-        self.dw_page_template = '==== TOOLNAME ====\n\n**Category**: CATEGORY \n\n**Sub-category**: SUBCATEGORY\n\n' \
-                                '**Relevant theories**: THEORIES\n\n**Type of evidence**: EVIDENCE\n\\\\\n\\\\\n' \
-                                '=== Main findings ===\n\nFINDINGS\n\\\\\n\\\\\n=== Key papers ===PAPERS'
-        self.dw_page_name_column = 'Toolname'
+        self.dw_page_template = '===== TOOLNAME =====\n\n' \
+                                '//DESCRIPTION//\n\\\\\n\\\\\n' \
+                                '**Alternative tool name:** AKA\n\n' \
+                                '**Tool variation**: TOOLVAR\n\n' \
+                                '**Category**: CATEGORY \n\n' \
+                                '**Sub-category**: SUBCATEGORY\n\n' \
+                                '**Relevant theories**: THEORIES\n\n' \
+                                '**Type of evidence**: EVIDENCE\n\n' \
+                                '**Evidence strength**: STRENGTH\n\\\\\n\\\\\n' \
+                                '==== Main findings ====\n\nFINDINGS\n\\\\\n\\\\\n' \
+                                '==== Discussion ====\n\nDISCUSSION\n\\\\\n\\\\\n' \
+                                '==== Practical relevance ====\n\nRELEVANCE\n\\\\\n\\\\\n' \
+                                '=== Use cases ===\n\nCASES\n\\\\\n\\\\\n' \
+                                '**Prevalence:**\n\nPREVALENCE\n\\\\\n\\\\\n' \
+                                '==== Key papers ====PAPERS\n\n' \
+                                '==== Secondary papers ====PAPERS2\n\n' \
+                                '**Contributors** CONTRIBUTOR'
+        self.dw_page_name_column = 'Tool name'
         self.root_namespace = 'tools:'
 
     def construct_row(self, record):
@@ -120,29 +154,49 @@ class ToolTable(Table):
         :param record: a single record from the Airtable
         :return: a formatted row for DW
         """
-        tool_name = record['fields']['Toolname']
-        tool_page_name = tool_name.translate(punctuation_translator)
-        tool_dw_table_page = '[[tools:{}|{}]]'.format(tool_page_name, tool_name)
+        if 'Wiki?' in record['fields']:
+            tool_name = record['fields']['Tool name']
+            tool_page_name = tool_name.translate(punctuation_translator)
+            tool_dw_table_page = '[[tools:{}|{}]]'.format(tool_page_name, tool_name)
 
-        category = record['fields'].get('Category', [""])
-        findings = record['fields'].get('Findings summarized', [""])
+            categories = record['fields'].get('Category', [""])
+            description = record['fields'].get('Description', "")
+            description = description.replace('\n', ' ').replace('\r', '')
+            findings = record['fields'].get('Findings summarized', "")
+            findings = findings.replace('\n', ' ').replace('\r', '')
 
-        if 'Theories' not in record['fields']:
-            theory_names = ''
+            if len(categories) > 0:
+                category_names = [self.airtable.get(cat_id)['fields']['(Sub)Category or theme'] for
+                                  cat_id in categories]
+                category_descriptions = [self.airtable.get(cat_id)['fields']['Description'].rstrip() for
+                                         cat_id in categories]
+                cat_column = ["<popover content=\"{}\" trigger='hover'>{}</popover>".format(description, name) for
+                              description in category_descriptions for name in category_names]
+            else:
+                cat_column = ''
+            # if 'Theories' not in record['fields']:
+            #     theory_names = ''
+            # else:
+            #     theory_names = [self.airtable.get(theory_id)['fields']['Theory'] for
+            #                     theory_id in record['fields']['Theories']]
+
+            paper_ids = record['fields'].get('key_papers', '')
+            key_papers = []
+            if len(paper_ids) > 0:
+                for paper_id in record['fields']['key_papers']:
+                    paper_name = self.airtable.get(paper_id)['fields'].get('parencite', '')
+                    title = self.airtable.get(paper_id)['fields'].get('Title', '')
+                    if paper_name == '' or title == '':
+                        pass
+                    else:
+                        paper_page_name = title.translate(punctuation_translator)
+                        paper_dw_table_page = '[[papers:{}|{}]]'.format(paper_page_name, paper_name)
+                        key_papers.append(paper_dw_table_page)
+
+            row = "| " + tool_dw_table_page + " | " + ', '.join(cat_column) + " | " + \
+                  description.rstrip() + " |" + findings.rstrip() + " | " + '; '.join(key_papers) + " |\n"
         else:
-            theory_names = [self.airtable.get(theory_id)['fields']['Theory'] for
-                            theory_id in record['fields']['Theories']]
-
-        key_papers = []
-        for paper_id in record['fields']['Keypapers']:
-            paper_name = self.airtable.get(paper_id)['fields']['parencite']
-            title = self.airtable.get(paper_id)['fields']['Title']
-            paper_page_name = title.translate(punctuation_translator)
-            paper_dw_table_page = '[[papers:{}|{}]]'.format(paper_page_name, paper_name)
-            key_papers.append(paper_dw_table_page)
-
-        row = "| " + tool_dw_table_page + " | " + category[0] + " | " +\
-            findings[0].rstrip() + " | " + '; '.join(key_papers) + " | " + ', '.join(theory_names) + " |\n"
+            row = ''
         return row
 
     def create_page(self, record):
@@ -151,47 +205,134 @@ class ToolTable(Table):
         :param record: a single record from the Airtable
         :return: a formatted page
         """
-        tn = record['fields']['Toolname']
+        tn = record['fields']['Tool name']
+        alt_tn = ', '.join(record['fields'].get('AKA', ''))
+        tool_var = record['fields'].get('Tool variation', '')
 
-        if 'Category' not in record['fields']:
-            cat = ""
+        categories = get_linked_items(self.airtable, 'Category', record, '(Sub)Category or theme')
+        sub_categories = get_linked_items(self.airtable, 'subcat', record, '(Sub)Category or theme')
+        theories = get_linked_items(self.airtable, 'Theories', record, 'Theory')
+        cases = get_linked_items(self.airtable, 'Relevant use cases', record, 'Name')
+
+        evid = record['fields'].get('Types of evidence', [""])
+        evid_types = ', '.join(evid)
+
+        evid_str = str(record['fields'].get('Evidence strength', ''))
+        description = record['fields'].get('Description', "")
+        summary = record['fields'].get('Findings summarized', "").rstrip()
+        discuss = record['fields'].get('Full discussion', "").rstrip()
+
+        relevance = record['fields'].get('Relevance to EA charities', [""])[0].rstrip()
+        preval = record['fields'].get('Prevalence', "")
+
+        paper_ids = record['fields'].get('key_papers', '')
+        if len(paper_ids) > 0:
+            papers = []
+            for paper_id in record['fields']['key_papers']:
+                p_title = self.airtable.get(paper_id)['fields'].get('Title', '')
+                paper_page_name = p_title.translate(punctuation_translator)
+                p_url = self.airtable.get(paper_id)['fields'].get('URL', '')
+                paper_page = ''
+                if p_title == '':
+                    pass
+                else:
+                    paper_page = '[[papers:{}|{}]]'.format(paper_page_name, p_title)
+                if p_url != '':
+                    fulltext_link = '[[{}|Full text]]'.format(p_url)
+                    paper_page += ', ' + fulltext_link
+                papers.append(paper_page)
+
+            if len(papers) > 0:
+                paper_items = '\n\n  * ' + '\n\n  * '.join(papers) + '\n'
+            else:
+                paper_items = ''
+
         else:
-            cat = record['fields']['Category'][0]
+            paper_items = ''
 
-        if 'Subcategory' not in record['fields']:
-            subcat = ""
+        secondary_paper_ids = record['fields'].get('secondary papers', '')
+        if len(secondary_paper_ids) > 0:
+            secondary_papers = []
+            for paper_id in record['fields']['secondary papers']:
+                p_title = self.airtable.get(paper_id)['fields'].get('Title', '')
+                p_url = self.airtable.get(paper_id)['fields'].get('URL', '')
+                if p_title == '' or p_url == '':
+                    pass
+                else:
+                    secondary_papers.append('[[' + p_url + ' | ' + p_title + ']]')
+            if len(secondary_papers) > 0:
+                secondary_paper_items = '\n\n  * ' + '\n\n  * '.join(secondary_papers) + '\n'
+            else:
+                secondary_paper_items = ''
         else:
-            subcat = record['fields']['Subcategory'][0]
+            secondary_paper_items = ''
 
-        if 'Theories' not in record['fields']:
-            theory_names = ''
+        if 'Contributors' in record['fields']:
+            contribs = record['fields']['Contributors']
+            contrib_names = [self.airtable.get(contrib_id)['fields']['Name, Institution'] for
+                             contrib_id in contribs]
+            contrib = ', '.join(contrib_names)
         else:
-            theory_names = ', '.join([self.airtable.get(theory_id)['fields']['Theory'] for
-                                      theory_id in record['fields']['Theories']])
+            contrib = ''
 
-        if 'Types of evidence' not in record['fields']:
-            evid = ''
-        else:
-            evid = record['fields']['Types of evidence'][0]
-
-        if 'Findings summarized' not in record['fields']:
-            summary = record['fields']['Findings summarized'] = [""]
-        else:
-            summary = record['fields']['Findings summarized'][0].rstrip()
-
-        papers = []
-        for paper_id in record['fields']['Keypapers']:
-            p_title = self.airtable.get(paper_id)['fields']['Title']
-            p_url = self.airtable.get(paper_id)['fields']['URL']
-            papers.append('[[' + p_url + ' | ' + p_title + ']]')
-
-        paper_items = '\n\n * ' + '\n\n * '.join(papers) + '\n'
-
-        replacements = ('TOOLNAME', tn), ('CATEGORY', cat), ('SUBCATEGORY', subcat), \
-                       ('THEORIES', theory_names), ('EVIDENCE', evid), ('FINDINGS', summary), \
-                       ('PAPERS', paper_items)
+        replacements = ('TOOLNAME', tn), ('DESCRIPTION', description), ('AKA', alt_tn), ('TOOLVAR', tool_var),\
+                       ('CATEGORY', categories), ('SUBCATEGORY', sub_categories), \
+                       ('THEORIES', theories), ('EVIDENCE', evid_types), ('STRENGTH', evid_str),\
+                       ('FINDINGS', summary), ('DISCUSSION', discuss),\
+                       ('RELEVANCE', relevance), ('CASES', cases), ('PREVALENCE', preval),\
+                       ('PAPERS', paper_items), ('PAPERS2', secondary_paper_items),\
+                       ('CONTRIBUTOR', contrib)
         tool_page = reduce(lambda a, kv: a.replace(*kv, 1), replacements, self.dw_page_template)
         return tool_page
+
+    def set_pages(self):
+        relevant_records = []
+        for record in self.records:
+            if 'Wiki?' in record['fields']:
+                relevant_records.append(record)
+        new_pages = self.format_pages(relevant_records)
+        # this has to be done with a break of at least 5s
+        for page in new_pages:
+            self.wiki.pages.set(page, new_pages[page])
+            time.sleep(5)
+
+
+class CategoryTable(Table):
+    def __init__(self, wiki, base_name, table_name, user_key):
+        super(CategoryTable, self).__init__(wiki, base_name, table_name, user_key)
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+        self.dw_table_page = 'tables:tool_categories'
+        self.included_in = 'tools:tool_categories'
+        self.main_column = '(Sub)Category or theme'
+        self.header = "\n^ Category ^ Description ^\n"
+        self.linked_pages = False
+
+    def construct_row(self, record):
+        """
+        Construct a row for the tools table based on data delivered by Airtable.
+        :param record: a single record from the Airtable
+        :return: a formatted row for DW
+        """
+        cat_name = record['fields']['(Sub)Category or theme']
+        description = record['fields']['Description'].rstrip()
+
+        row = "| " + cat_name + " | " + description + " |\n"
+        return row
+
+    def format_table(self):
+        table_content = '<datatables dom="t" page-length="100">\n'
+        # initialize table content with the header
+        table_content += self.header
+        # construct the rows for all available records using the corresponding constructor function
+        for record in self.records:
+            # we only consider records in which the main column is not empty
+            if (self.main_column is not None) and (self.main_column not in record['fields']):
+                pass
+            else:
+                table_content += self.construct_row(record)
+        table_content += '</datatables>\n'
+        return table_content
 
 
 class FtseTable(Table):
@@ -363,15 +504,38 @@ class PapersTable(Table):
         self.dw_table_page = 'tables:papers'
         self.included_in = 'papers:papers'
         self.main_column = 'parencite'
-        self.header = "\n^ Reference ^ Type of evidence ^ Sample size ^ Effect size ^ Link ^\n"
+        self.header = "\n^ Reference ^ Title ^ Type of evidence ^ Discussion ^ Tools ^ Link ^\n"
         self.linked_pages = True
-        self.dw_page_template = '====PAPERTITLE====\n\n<div class="full_reference">REFERENCE</div>\n\n' \
-                                '<div class="evidence_type">**Type of evidence**: EVIDENCE</div>\n\n' \
-                                '<div class="paper_keywords">**Keywords**: KEYWORDS</div>\n\\\\\n' \
-                                '===Paper summary===\n\n<div class="paper_summary">SUMMARY</div>\n\\\\\n' \
-                                '===Discussion===\n\n<div class="paper_discussion">DISCUSSION</div>'
+        self.dw_page_template = '====PAPERTITLE====\n\n' \
+                                'REFERENCE\n\n' \
+                                '**Keywords**: KEYWORDS\n\n' \
+                                '**Discipline**: DISCIPLINE\n\n' \
+                                '**Type of evidence**: EVIDENCE\n\n' \
+                                '**Related tools**: TOOLS\n\n' \
+                                '**Related theories**: THEORIES\n\n' \
+                                '**Related critiques**: CRITIQUES\n\n' \
+                                '**Charity target**: TARGETS\n\n' \
+                                '**Donor population**: DONORS\n\\\\\n\\\\\n' \
+                                '===Paper summary===\n\nSUMMARY\n\\\\\n' \
+                                '===Discussion===\n\nDISCUSSION\n\\\\\n' \
+                                '===Evaluation===\n\nEVALUATION\n\\\\\n' \
+                                'This paper has been added by CREATORS'  # and evaluated by EVALUATORS'
+        # TODO incorporate illustration when available
         self.dw_page_name_column = 'Title'
         self.root_namespace = 'papers:'
+        # TODO bottom tabular
+        """
+        At the bottom of the page there should be some expandable table with a header
+        'Meta-analysis and evaluation content'
+        that will draw from a meta-analysis table
+        The following columns are relevant:
+        peer-reviewed - rating - paper citations - replications - repl success - pre-registered - verified -
+        participants aware - sample demo - design - link to raw data - simple comparison - sample size -
+        share treated - key components - main treatment - mean don - sd don - endowment - curr -
+        year_run - conversion rate - Effect size original units - Effect size(USD - 2018) -
+        SE of effect size - SE calc method - Effect size(Share of mean donation) - Mean incidence-
+        Effect size(incidence) - Headline p - value
+        """
 
     def construct_row(self, record):
         """
@@ -380,21 +544,36 @@ class PapersTable(Table):
         :return: a formatted row for DW
         """
         paper_name = record['fields']['parencite']
-        title = record['fields']['Title']
+        title = record['fields'].get('Title', '')
 
         paper_page_name = title.translate(punctuation_translator)
         paper_dw_table_page = '[[papers:{}|{}]]'.format(paper_page_name, paper_name)
 
+        discussion = record['fields'].get('Discussion/findings', '')
+        discussion = discussion.replace('\n', ' ').replace('\r', '')
+
+        tool_ids = record['fields'].get('tools', '')
+        related_tools = []
+        if len(tool_ids) > 0:
+            for tool_id in record['fields']['tools']:
+                tool_name = self.airtable.get(tool_id)['fields'].get('Tool name', '')
+                if tool_name == '':
+                    pass
+                else:
+                    tool_page_name = tool_name.translate(punctuation_translator)
+                    tool_dw_table_page = '[[tools:{}|{}]]'.format(tool_page_name, tool_name)
+                    related_tools.append(tool_dw_table_page)
+
         evidence = record['fields'].get('Type of evidence', [''])
-        size = record['fields'].get('Sample size', '')
-        effect = record['fields'].get('Effect size (Share of mean donation)', '')
 
         if 'URL' not in record['fields']:
             link = ''
         else:
             link = '[[{}|{}]]'.format(record['fields']['URL'], 'Full text')
 
-        row = "| " + " | ".join([paper_dw_table_page, evidence[0], str(size), str(effect), link]) + " |\n"
+        row = "| " + paper_dw_table_page + " | " + title + " | " + \
+              evidence[0] + " | " + discussion + " | " + ', '.join(related_tools) + " | " + link + " |\n"
+
         return row
 
     def create_page(self, record):
@@ -409,6 +588,7 @@ class PapersTable(Table):
         pages = record['fields'].get('Pages', '')
         year = record['fields'].get('Year', '')
         link = record['fields'].get('URL', '')
+        # doi = record['fields'].get('doi', '') none of this is filled or works yet
         if link == '':
             reference = '{}, ({}). {}. {}, {}.'.format(authors, year, title, journal, pages)
         else:
@@ -416,11 +596,38 @@ class PapersTable(Table):
 
         evidence = record['fields'].get('Type of evidence', [''])
         keywords = ', '.join(record['fields'].get('keywords', ['']))
+        charities = ', '.join(record['fields'].get('Charity-target', ['']))
+        donors = ', '.join(record['fields'].get('Donor population', ['']))
+        discipline = ', '.join(record['fields'].get('Discipline/field', ['']))
+
+        tool_ids = record['fields'].get('tools', '')
+        related_tools = []
+        if len(tool_ids) > 0:
+            for tool_id in record['fields']['tools']:
+                tool_name = self.airtable.get(tool_id)['fields'].get('Tool name', '')
+                if tool_name == '':
+                    pass
+                else:
+                    tool_page_name = tool_name.translate(punctuation_translator)
+                    tool_dw_table_page = '[[tools:{}|{}]]'.format(tool_page_name, tool_name)
+                    related_tools.append(tool_dw_table_page)
 
         summary = record['fields'].get('Wiki-notes', '')
-        discussion = record['fields'].get('Discussion/evaluation by', '')
+        discussion = record['fields'].get('Discussion/findings', '')
+        evaluation = record['fields'].get('Evaluation', '')
 
-        replacements = ('PAPERTITLE', title), ('REFERENCE', reference), ('EVIDENCE', evidence[0]), \
-                       ('KEYWORDS', keywords), ('SUMMARY', summary), ('DISCUSSION', discussion)
+        creators = get_linked_items(self.airtable, 'Added by', record, 'Name, Institution')
+        # # this is currently not a link to persons
+        # evaluators = get_linked_items(self.airtable, 'Discussion/evaluation by', record, 'Name, Institution')
+        theories = get_linked_items(self.airtable, 'Theories', record, 'Theory')
+        critiques = get_linked_items(self.airtable, 'critiques', record, 'Name')
+
+        replacements = ('PAPERTITLE', title), ('REFERENCE', reference), ('KEYWORDS', keywords), \
+                       ('DISCIPLINE', discipline), ('EVIDENCE', evidence[0]), \
+                       ('TOOLS', ', '.join(related_tools)), ('THEORIES', theories), \
+                       ('CRITIQUES', critiques), ('TARGETS', charities), ('DONORS', donors), \
+                       ('SUMMARY', summary), ('DISCUSSION', discussion), \
+                       ('EVALUATION', evaluation), ('CREATORS', creators)  # , ('EVALUATORS', evaluators)
         paper_page = reduce(lambda a, kv: a.replace(*kv, 1), replacements, self.dw_page_template)
         return paper_page
+
