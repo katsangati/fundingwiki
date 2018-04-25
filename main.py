@@ -2,7 +2,22 @@
 This is a top-level script for managing the tables and pages on Innovations in Fundraising Wiki.
 It provides command-line access to the possible operations on the wiki content using the Airtable
 database.
-The settings for accessing the Wiki and the tables need to be specified
+
+The settings for accessing the Wiki need to be specified in the config.json file. Currently config.json contains two
+Wikis that can be used: local test wiki and the official Wiki located at innovationsinfundraising.org.
+
+In order to use the script with either of these wikis 3 things needs to be specified:
+- username for the user with admin-rights that will be posting content
+- password key for retrieving the wiki password from os profile (see note below)
+- wiki url for the location of the wiki
+
+Note: the script assumes that passwords to the wiki and Airtable api key are stored in the user bash profile as
+environmental variables. In order to save them as such open the bash profile file and add lines like this:
+
+export SOME_KEY="your_key"
+
+Save the file. You can now insert SOME_KEY that specifies the wiki password in config.json. Alternatively, export
+your passwords with keys specified in the config file and only edit the username and url settings.
 """
 import wikimanager
 import argparse

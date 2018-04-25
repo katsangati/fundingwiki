@@ -1,7 +1,6 @@
 """
-This is a script for manipulating Airtable data and redirecting it to the Innovations in Fundraising DokuWiki
-(or its local test version). It defines classes that represent Airtable tables that feed DW content
-(as tables or pages).
+Define functions and classes for representing Airtable data, manipulating it and redirecting it to the Wiki
+in different formats (as tables or pages).
 """
 import airtable as at
 from functools import reduce
@@ -16,6 +15,9 @@ punctuation_translator = str.maketrans('', '', string.punctuation)
 
 def get_linked_items(airtable, column_name, record, linked_column_name):
     """Fetch linked item names from a given column in a given record.
+    This is used when a table we are using has a column in which records are not natively present
+    but linked from a different table. The Airtable API provides such records as their ids.
+    This function looks up these records and retrieves information from a specified column in their table.
 
     Args:
         airtable: airtable object associated with the table
@@ -40,15 +42,44 @@ class Table:
     """
     Top-level Table class that provides a blueprint for all more specific tables and instantiates
     common methods and methods with default parameters.
+
+    Each sub-class:
+    - defines its own attribute values
+    - redefines a number of methods (mostly construct_row and create_page)
+    Together they specify the format of tables and pages for a given Airtable table.
+
+    In order to create a new interface for some table in the Airtable database, a new class specific for that table
+    needs to be defined here.
+
+    Attributes:
+        wiki (DokuWiki): the wiki object passed from the wikimanager
+        airtable (Airtable): Airtable object that provides an API connection to the Airtable table
+        records (list): a list of Airtable table records
+        dw_table_page (str): wiki page link for the table
+        included_in (str): wiki page link for where the table is included
+        main_column (str): the name of the first column of the table
+        header (str): the table header
+        linked_pages (bool): whether there are wiki pages fed from this table
+        dw_page_template (str): a template for page generated from this table
+        dw_page_name_column (str): the column that is used for constructing a page link
+        root_namespace (str): the namespace in which pages will be included
+
     """
 
     def __init__(self, wiki, base_name, table_name, user_key):
+        """Instantiate a Table object.
+        Whenever a table drawn from Airtable does not have a specific Table class associated with it,
+        this top-level Table will be used.
+
+        Args:
+            wiki (Dokuwiki): the wiki object passed from the wikimanager
+            base_name (str): API key to the Airtable base in which the table resides
+            table_name (str): the name of the table in the Airtable base
+            user_key (str): user API key to the Airtable
+        """
         self.wiki = wiki
         self.airtable = at.Airtable(base_name, table_name, user_key)
         self.records = self.airtable.get_all()
-
-        # self.airtable = None
-        # self.records = None
         self.dw_table_page = 'tables:test'
         self.included_in = None
         self.main_column = None
@@ -61,6 +92,14 @@ class Table:
             self.root_namespace = None
 
     def construct_row(self, record):
+        """Construct a single table row for a given record.
+
+        Args:
+            record (dict): a single table record
+
+        Returns:
+            (str) formatted row for the table based on record content
+        """
         row = "| "
         for key, value in record['fields'].items():
             row += repr(value)
@@ -69,6 +108,12 @@ class Table:
         return row
 
     def format_table(self):
+        """Construct a full table for Airtable table records.
+        Loop through all records and collect all formatted rows.
+
+        Returns:
+            (str) formatted table
+        """
         # initialize table content with the header
         table_content = self.header
         # construct the rows for all available records using the corresponding constructor function
@@ -86,10 +131,13 @@ class Table:
         self.wiki.pages.set(self.dw_table_page, new_page)
 
     def create_page(self, record):
-        """
-        Construct a default page for a single record.
-        :param record: a single record from the Airtable
-        :return: a formatted page
+        """Construct a default page for a single record.
+
+        Args:
+            record: a single record from the Airtable
+
+        Returns:
+            (str) a formatted page
         """
         page = ""
         for key, value in record['fields'].items():
@@ -99,6 +147,14 @@ class Table:
         return page
 
     def format_pages(self, records):
+        """Construct pages for all provided records.
+
+        Args:
+            records: Airtable records
+
+        Returns:
+            (dict) a set of pages indexed by their wiki link names
+        """
         new_pages = {}
         if (self.main_column is None) and (self.dw_page_name_column is None):
             record = records[0]
@@ -119,6 +175,7 @@ class Table:
         return new_pages
 
     def set_pages(self):
+        """Format pages for table records and post them to the wiki."""
         new_pages = self.format_pages(self.records)
         # this has to be done with a break of at least 5s
         for page in new_pages:

@@ -10,8 +10,24 @@ import json
 
 
 class WikiManager:
+    """Manager class that provides short-hand access to content editing functionality.
 
+    Attributes:
+        wiki (DokuWiki): wiki object that will be used to fetch and post content
+        user_key: user API key to the Airtable
+        table (Table): table object that will be instantiated and used to format content
+        used_table_name (str): table name in the Airtable
+        defined_tables (list): a list of tables that have defined formats
+
+    """
     def __init__(self, version):
+        """Instantiate a manager for a particular wiki version.
+        This sets up a connection to the wiki, fetches Airtable API key and defines which tables
+        in the Airtable database have their templates defined.
+
+        Args:
+            version (str): wiki version to interface with (official or test)
+        """
         with open('config.json', 'r') as f:
             config = json.load(f)
         if version not in ["official", "test"]:
@@ -28,11 +44,15 @@ class WikiManager:
                                    'Charity experiments', 'Third sector', 'papers_mass']
 
     def setup_table(self, table_name):
-        """
-        Initialize the connection to a given table in Airtable by instantiating a specific object
-        of a Table class.
-        :param table_name: the name of the table in the Airtable database
-        :return: Table object
+        """Initialize the connection to a given table in Airtable.
+         This is accomplished by instantiating a specific object of a Table class.
+
+        Args:
+            table_name: the name of the table in the Airtable database
+
+        Returns:
+            Table object
+
         """
         if table_name == 'Tools':
             table_base = 'appBzOSifwBqSuVfH'
@@ -70,6 +90,7 @@ class WikiManager:
             self.used_table_name = table_name
 
     def create_table(self):
+        """Create a new Wiki table from an Airtable table."""
         self.table.set_table_page()
         print("Go to {} in your DokuWiki to see the table.".format(self.table.dw_table_page))
         if self.used_table_name not in self.defined_tables:
@@ -77,6 +98,7 @@ class WikiManager:
                   "please implement an appropriate class.".format(self.table.dw_table_page))
 
     def create_pages(self):
+        """Create a set of Wiki pages from an Airtable table."""
         self.table.set_pages()
         print("Go to {} namespace in your DokuWiki to see the pages.".format(self.table.root_namespace))
         if self.used_table_name not in self.defined_tables:
@@ -84,6 +106,7 @@ class WikiManager:
                   "To change its formatting, please implement an appropriate class.")
 
     def create_table_pages(self):
+        """Create a table and a set of pages on the Wiki from an Airtable table."""
         self.table.set_table_page()
         print("Go to {} in your DokuWiki to see the table.".format(self.table.dw_table_page))
         if self.table.linked_pages:
@@ -97,7 +120,7 @@ class WikiManager:
                   "To change the formatting of this table and pages, implement an appropriate class.")
 
     def update_table(self):
-        """Re-generate the full table on DW if any record has been modified.
+        """Re-generate a full table on the Wiki if any record in Airtable table has been modified.
         When done, reset the 'Modified' fields in the Airtable."""
         modified_records = 0
         for record in self.table.records:
@@ -108,7 +131,7 @@ class WikiManager:
             self.table.set_table_page()
 
     def update_pages(self):
-        """Re-generate the pages on DW associated with any records that have been modified.
+        """Re-generate the pages on Wiki associated with any records that have been modified in the Airtable.
         When done, reset the 'Modified' fields in the Airtable."""
         modified_records = []
         for record in self.table.records:
@@ -120,7 +143,7 @@ class WikiManager:
             self.table.set_pages()
 
     def update_table_pages(self):
-        """Re-generate the full table on DW if any record has been modified.
+        """Re-generate the full table on the Wiki if any record has been modified, as well as associated pages.
         When done, reset the 'Modified' fields in the Airtable."""
         modified_records = []
         for record in self.table.records:
