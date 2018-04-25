@@ -1,5 +1,5 @@
 """
-This is a script that defines the main classes for managing the DokuWiki content in connection
+Define the main classes for managing the DokuWiki content in connection
 with Airtable, i.e. creating new pages or updating the existing ones.
 """
 
@@ -28,6 +28,12 @@ class WikiManager:
                                    'Charity experiments', 'Third sector', 'papers_mass']
 
     def setup_table(self, table_name):
+        """
+        Initialize the connection to a given table in Airtable by instantiating a specific object
+        of a Table class.
+        :param table_name: the name of the table in the Airtable database
+        :return: Table object
+        """
         if table_name == 'Tools':
             table_base = 'appBzOSifwBqSuVfH'
             self.table = wikicontents.ToolTable(self.wiki, table_base, table_name, self.user_key)

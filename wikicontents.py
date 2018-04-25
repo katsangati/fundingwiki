@@ -15,13 +15,17 @@ punctuation_translator = str.maketrans('', '', string.punctuation)
 
 
 def get_linked_items(airtable, column_name, record, linked_column_name):
-    """
-    Fetch linked item names from a given column in a given record.
-    :param airtable: airtable object associated with the table
-    :param column_name: the name of the column that contains linked item ids
-    :param record: which record to fetch for
-    :param linked_column_name: the name of the column in a linked table that we use to retrieve meaningful item names
-    :return:
+    """Fetch linked item names from a given column in a given record.
+
+    Args:
+        airtable: airtable object associated with the table
+        column_name: the name of the column that contains linked item ids
+        record: which record to fetch for
+        linked_column_name: the name of the column in a linked table that we use to retrieve meaningful item names
+
+    Returns:
+        str: joined item names
+
     """
     if column_name in record['fields']:
         item_ids = record['fields'][column_name]
@@ -33,6 +37,10 @@ def get_linked_items(airtable, column_name, record, linked_column_name):
 
 
 class Table:
+    """
+    Top-level Table class that provides a blueprint for all more specific tables and instantiates
+    common methods and methods with default parameters.
+    """
 
     def __init__(self, wiki, base_name, table_name, user_key):
         self.wiki = wiki

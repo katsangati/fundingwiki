@@ -9,13 +9,13 @@ import argparse
 
 
 def main(wiki_version, table_name, mode, resource_type):
-    """
-    This is the main function for creating and updating wiki content.
-    :param wiki_version: which wiki we are trying to modify - local test or public official one
-    :param table_name: which table on Airtable we are trying to use
-    :param mode: do we want to create specified content or update existing content based on changed records
-    :param resource_type: type of content we want to create or update - wiki table, wiki pages or both
-    :return:
+    """Create or update wiki content.
+
+    Args:
+        wiki_version: which wiki we are trying to modify - local test or public official one
+        table_name: which table on Airtable we are trying to use
+        mode: do we want to create specified content or update existing content based on changed records
+        resource_type: type of content we want to create or update - wiki table, wiki pages or both
     """
     manager = wikimanager.WikiManager(wiki_version)
     manager.setup_table(table_name)
