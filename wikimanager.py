@@ -9,9 +9,6 @@ import wikicontents
 import json
 
 
-# in addition to tables that are associated with wiki pages,
-# there can be tables not associated with pages and pages not associated with tables
-# i.e. update_table has to check this but both update_table and update_pages should be callable separately
 class WikiManager:
 
     def __init__(self, version):
@@ -68,15 +65,30 @@ class WikiManager:
 
     def create_table(self):
         self.table.set_table_page()
+        print("Go to {} in your DokuWiki to see the table.".format(self.table.dw_table_page))
         if self.used_table_name not in self.defined_tables:
             print("Go to '{}' in your DokuWiki to see the table. To change its formatting, "
                   "please implement an appropriate class.".format(self.table.dw_table_page))
 
     def create_pages(self):
         self.table.set_pages()
+        print("Go to {} namespace in your DokuWiki to see the pages.".format(self.table.root_namespace))
         if self.used_table_name not in self.defined_tables:
             print("Go to 'test:test_page' in your DokuWiki to see the possible page content. "
                   "To change its formatting, please implement an appropriate class.")
+
+    def create_table_pages(self):
+        self.table.set_table_page()
+        print("Go to {} in your DokuWiki to see the table.".format(self.table.dw_table_page))
+        if self.table.linked_pages:
+            self.table.set_pages()
+            print("Go to {} namespace in your DokuWiki to see the pages.".format(self.table.root_namespace))
+        else:
+            print("This table does not have associated pages. Only the table has been created.")
+        if self.used_table_name not in self.defined_tables:
+            print("Go to '{}' in your DokuWiki to see the table.".format(self.table.dw_table_page))
+            print("Go to 'test:test_page' in your DokuWiki to see the possible page content. "
+                  "To change the formatting of this table and pages, implement an appropriate class.")
 
     def update_table(self):
         """Re-generate the full table on DW if any record has been modified.
@@ -88,8 +100,6 @@ class WikiManager:
                 self.table.airtable.update(record['id'], {'Modified': False})
         if modified_records > 0:
             self.table.set_table_page()
-            if self.table.linked_pages:
-                print("The table has linked DW pages. Remember to call manager.update_pages() to update them.")
 
     def update_pages(self):
         """Re-generate the pages on DW associated with any records that have been modified.
@@ -100,5 +110,18 @@ class WikiManager:
                 modified_records.append(record)
                 self.table.airtable.update(record['id'], {'Modified': False})
         if len(modified_records) > 0:
+            self.table.records = modified_records
+            self.table.set_pages()
+
+    def update_table_pages(self):
+        """Re-generate the full table on DW if any record has been modified.
+        When done, reset the 'Modified' fields in the Airtable."""
+        modified_records = []
+        for record in self.table.records:
+            if 'Modified' in record['fields']:
+                modified_records.append(record)
+                self.table.airtable.update(record['id'], {'Modified': False})
+        if len(modified_records) > 0:
+            self.table.set_table_page()
             self.table.records = modified_records
             self.table.set_pages()

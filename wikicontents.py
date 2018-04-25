@@ -24,7 +24,7 @@ def get_linked_items(airtable, column_name, record, linked_column_name):
     :return:
     """
     if column_name in record['fields']:
-        item_ids = record['fields']['Category']
+        item_ids = record['fields'][column_name]
         item_names = [airtable.get(item_id)['fields'][linked_column_name] for item_id in item_ids]
         items = ', '.join(item_names)
     else:
@@ -136,7 +136,7 @@ class ToolTable(Table):
                                 '**Sub-category**: SUBCATEGORY\n\n' \
                                 '**Relevant theories**: THEORIES\n\n' \
                                 '**Type of evidence**: EVIDENCE\n\n' \
-                                '**Evidence strength**: STRENGTH\n\\\\\n\\\\\n' \
+                                '**Evidence strength** (ad hoc assessment): STRENGTH\n\\\\\n\\\\\n' \
                                 '==== Main findings ====\n\nFINDINGS\n\\\\\n\\\\\n' \
                                 '==== Discussion ====\n\nDISCUSSION\n\\\\\n\\\\\n' \
                                 '==== Practical relevance ====\n\nRELEVANCE\n\\\\\n\\\\\n' \
