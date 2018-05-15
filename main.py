@@ -18,6 +18,16 @@ export SOME_KEY="your_key"
 
 Save the file. You can now insert SOME_KEY that specifies the wiki password in config.json. Alternatively, export
 your passwords with keys specified in the config file and only edit the username and url settings.
+
+TODO: how to install requirements
+TODO: Examples and command
+TODO: minimal working example for writing a new class
+TODO: things need to change when i add a new table
+TODO: picture a flow
+TODO: instruction case: I want to run this
+TODO: instruction case: I want to change format of a table/page
+TODO: instruction case: I want to create a table/page
+TODO: update everything
 """
 import wikimanager
 import argparse
