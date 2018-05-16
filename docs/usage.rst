@@ -51,14 +51,14 @@ In order to define the format for new tables and publish them on the Wiki, pleas
 Examples
 ---------
 
-Create a Tools table from scratch and push it to the official Wiki
+Create a Tools table from scratch and push it to the official Wiki::
 
-    :: python3 main.py official Tools create table
+    python3 main.py official Tools create table
 
-Update a set of pages that have been previously published on the official Wiki based on the Tools table
-::
+Update a set of pages that have been previously published on the official Wiki based on the Tools table::
+
     python3 main.py official Tools update pages
 
-Create a Papers table and a set of pages and push them to the local test Wiki
-::
+Create a Papers table and a set of pages and push them to the local test Wiki::
+
     python3 main.py test papers_mass create both
