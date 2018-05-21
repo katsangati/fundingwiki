@@ -362,44 +362,6 @@ class ToolTable(Table):
             time.sleep(5)
 
 
-class CategoryTable(Table):
-    def __init__(self, wiki, base_name, table_name, user_key):
-        super(CategoryTable, self).__init__(wiki, base_name, table_name, user_key)
-        self.airtable = at.Airtable(base_name, table_name, user_key)
-        self.records = self.airtable.get_all()
-        self.dw_table_page = 'tables:tool_categories'
-        self.included_in = 'tools:tool_categories'
-        self.main_column = '(Sub)Category or theme'
-        self.header = "\n^ Category ^ Description ^\n"
-        self.linked_pages = False
-
-    def construct_row(self, record):
-        """
-        Construct a row for the tools table based on data delivered by Airtable.
-        :param record: a single record from the Airtable
-        :return: a formatted row for DW
-        """
-        cat_name = record['fields']['(Sub)Category or theme']
-        description = record['fields']['Description'].rstrip()
-
-        row = "| " + cat_name + " | " + description + " |\n"
-        return row
-
-    def format_table(self):
-        table_content = '<datatables dom="t" page-length="100">\n'
-        # initialize table content with the header
-        table_content += self.header
-        # construct the rows for all available records using the corresponding constructor function
-        for record in self.records:
-            # we only consider records in which the main column is not empty
-            if (self.main_column is not None) and (self.main_column not in record['fields']):
-                pass
-            else:
-                table_content += self.construct_row(record)
-        table_content += '</datatables>\n'
-        return table_content
-
-
 class FtseTable(Table):
     def __init__(self, wiki, base_name, table_name, user_key):
         super(FtseTable, self).__init__(wiki, base_name, table_name, user_key)
@@ -407,10 +369,27 @@ class FtseTable(Table):
         self.records = self.airtable.get_all()
         self.dw_table_page = 'tables:employee_giving_schemes'
         self.included_in = 'iifwiki:employee_giving_schemes'
-        self.main_column = 'Company [(cite:LSE)]'
-        self.header = "\n^ Company ^ Sector ^ Donation Matching ^ Payroll Giving Provider ^ Details ^ " \
-                      "Outcomes ^ Reference ^\n"
-        self.linked_pages = False
+        self.main_column = 'Company'
+        self.header = "\n^ Company ^ Sector ^ Donation Matching ^ Payroll Giving ^ DM Details ^ " \
+                      "PG Details ^ Other Details ^ Endorsed ^ Outcomes ^ Reference ^\n"
+
+        self.linked_pages = True
+        self.dw_page_template = '====COMPANY====\n\\\\\n' \
+                                '**Sector**: SECTOR\n\n' \
+                                '**Donation matching**: MATCH\n\n' \
+                                '**Payroll giving**: PAYROLL\n\n' \
+                                '**Pays PG fees**: FEES\n\n' \
+                                '**PG provider**: PROVIDER\n\n' \
+                                '**Endorsed charities**: ENDORSED\n\\\\\n\\\\\n' \
+                                '===Details of matching schemes===\n\nMATCH_DETAILS\n\\\\\n\\\\\n' \
+                                '===Details of payroll giving and other programmes===\n\n' \
+                                'PAYROLL_DETAILS\n\\\\\n\\\\\n' \
+                                '===Other relevant information===\n\nOTHER_DETAILS\n\\\\\n\\\\\n' \
+                                '===Outcomes===\n\nOUTCOMES\n\\\\\n\\\\\n' \
+                                '===Sources, links to further information===\n\n' \
+                                'LINKS\n\\\\\n'
+        self.dw_page_name_column = 'Company'
+        self.root_namespace = 'companies:'
 
     def construct_row(self, record):
         """
@@ -418,146 +397,120 @@ class FtseTable(Table):
         :param record: a single record from the Airtable
         :return: a formatted row for DW
         """
-        company_name = record['fields']['Company [(cite:LSE)]']
 
-        industry = record['fields'].get('industry', '')
-        details = record['fields'].get('Details', '')
-        outcomes = record['fields'].get('Outcomes', '')
+        # include only rows where ftse100 is ticked
+        if 'ftse100' not in record['fields']:
+            return ''
+
+        company_name = record['fields']['Company']
+        company_page_name = company_name.translate(punctuation_translator)
+        company_dw_table_page = '[[companies:{}|{}]]'.format(company_page_name, company_name)
+
+        sector = record['fields'].get('Sector', '')
 
         if 'Donation Matching' not in record['fields']:
             donation = ""
         else:
             donation = "X"
 
-        if 'Payroll Giving Provider' not in record['fields']:
+        if 'Payroll Giving' not in record['fields']:
             payroll = ""
         else:
             payroll = "X"
 
-        if 'Reference' in record['fields'] and 'web link' in record['fields']:
+        # possibly merge the 'details' rows if it improves table format
+        details_match = record['fields'].get('Details: Matching', '').replace('\n', ' \\\\ ')
+        details_payroll = record['fields'].get('Details: Payroll giving', '').replace('\n', ' \\\\ ')
+        details_other = record['fields'].get('Details: Other', '').replace('\n', ' \\\\ ')
+
+        endorsed = record['fields'].get('Endorsed charity(s)', [''])
+        outcomes = record['fields'].get('Outcomes', '')
+
+        if 'Reference' in record['fields'] and 'Reference link' in record['fields']:
             ref_text = re.sub('\[(.*)\]', '', record['fields']['Reference']).rstrip()
-            ref_url = record['fields']['web link']
+            ref_url = record['fields']['Reference link']
             ref = '[[{}|{}]]'.format(ref_url, ref_text)
         else:
             ref = ''
 
-        row = "| " + company_name + " | " + industry + " | " +\
-              donation + " | " + payroll + " | " + details + " | " +\
-              outcomes + " | " + ref + " |\n"
+        row = "| " + company_dw_table_page + " | " + sector + " | " + \
+              donation + " | " + payroll + " | " + details_match + " | " + \
+              details_payroll + " | " + details_other + " | " + \
+              ', '.join(endorsed) + " | " + outcomes + " | " + ref + " |\n"
         return row
 
-
-class ExperimentTable(Table):
-
-    def __init__(self, wiki, base_name, table_name, user_key):
-        super(ExperimentTable, self).__init__(wiki, base_name, table_name, user_key)
-        self.airtable = at.Airtable(base_name, table_name, user_key)
-        self.records = self.airtable.get_all()
-        self.dw_table_page = 'tables:data_experiments'
-        self.included_in = 'iifwiki:dataexperiments'
-        self.main_column = 'Experiment'
-        self.header = "\n^ Experiment ^ N ^ Endowment ^ Share donating ^ Share donated ^ Mean donation ^\
-                            SD ^ SD/Mean ^ Effect Size ^ References ^\n"
-        self.linked_pages = False
-
-    def construct_row(self, record):
+    def create_page(self, record):
         """
-        Construct a row for the charity experiments table based on data delivered by Airtable.
+        Construct a page for each paper.
         :param record: a single record from the Airtable
-        :return: a formatted row for DW
+        :return: a formatted page
         """
-        experiment_name = record['fields']['Experiment']
-        n = record['fields'].get('N ', '')
-        endowment = record['fields'].get('Endowment', '')
-        share_donating = record['fields'].get('Share donating', '')
-        share_donated = record['fields'].get('Share donated', '')
-        exp_mean = record['fields'].get('Mean donation', '')
-        exp_sd = record['fields'].get('SD', '')
-        sd_mean = record['fields'].get('SD/Mean', '')
-        effect = record['fields'].get('Effect Size %', '')
-        ref = record['fields'].get('References', '')
 
-        row = "| " + experiment_name + " | " + n + " | " + endowment + " | " +\
-              share_donating + " | " + share_donated + " | " + exp_mean + " | " +\
-              exp_sd + " | " + sd_mean + " | " + effect + " | " + ref + " |\n"
-        return row
+        company_name = record['fields']['Company']
+        sector = record['fields'].get('Sector', '')
 
-
-class ExperienceTable(Table):
-
-    def __init__(self, wiki, base_name, table_name, user_key):
-        super(ExperienceTable, self).__init__(wiki, base_name, table_name, user_key)
-        self.airtable = at.Airtable(base_name, table_name, user_key)
-        self.records = self.airtable.get_all()
-        self.dw_table_page = 'tables:experiences_of_workplace_activists'
-        self.included_in = 'iifwiki:experiences_of_workplace_activists'
-        self.main_column = 'Name'
-        self.header = "\n^ Name ^ Organisation ^ Employees ^ " \
-                      "Charity ^ Description ^ Participants ^ Raised ^ Results ^\n"
-        self.linked_pages = False
-
-    def construct_row(self, record):
-        """
-        Construct a row for fundraising experiences table based on data delivered by Airtable.
-        :param record: a single record from the Airtable
-        :return: a formatted row for DW
-        """
-        person_name_role = record['fields']['Name'] + ", " + record['fields'].get('Role', '')
-        organisation = record['fields'].get('Organisation', '') + ", " + record['fields'].get('Organisation type', '')
-        num_employees = record['fields'].get('Number of employees', '')
-        # experience_type = record['fields'].get('Experience type', '')
-        charity = record['fields'].get('Charity', '')
-        description = record['fields'].get('Event description', '')
-        num_participants = record['fields'].get('Number of participants', '')
-        raised = record['fields'].get('Amount raised', '')
-
-        results = "**Choice motivation**: " + record['fields'].get('Choice motivation', '') + "\\\\ " +\
-                  "**Communication channel**: " + record['fields'].get('Communication channel', '') + "\\\\ " +\
-                  "**Main arguments**: " + record['fields'].get('Main arguments', '') + "\\\\ " +\
-                  "**Problems faced**: " + record['fields'].get('Problems faced', '') + "\\\\ " +\
-                  "**Evaluation**: " + record['fields'].get('Evaluation', '') + "\\\\ " +\
-                  "**Additional information**: " + record['fields'].get('Comments', '')
-
-        row = "| " + " | ".join([person_name_role, organisation, str(num_employees), charity,
-                                description, str(num_participants), raised, results]) + " |\n"
-        return row
-
-
-class ThirdSectorTable(Table):
-
-    def __init__(self, wiki, base_name, table_name, user_key):
-        super(ThirdSectorTable, self).__init__(wiki, base_name, table_name, user_key)
-        self.airtable = at.Airtable(base_name, table_name, user_key)
-        self.records = self.airtable.get_all()
-        self.dw_table_page = 'tables:third_sector_infrastructure_details'
-        self.included_in = 'iifwiki:third_sector_infrastructure_details'
-        self.main_column = 'Name'
-        self.header = "\n^ Name ^ Whom does it help? ^ Role ^ Example activity ^ " \
-                      "Size ^ Established ^ CEO/Chairman ^\n"
-        self.linked_pages = False
-
-    def construct_row(self, record):
-        """
-        Construct a row for third-sector organisations table based on data delivered by Airtable.
-        :param record: a single record from the Airtable
-        :return: a formatted row for DW
-        """
-        name = record['fields']['Name']
-        link = record['fields'].get('Link', '')
-        if link != '':
-            name_link = '[[{}|{}]]'.format(link, name)
+        if 'Donation Matching' not in record['fields']:
+            donation = ""
         else:
-            name_link = name
+            donation = "yes"
 
-        target = record['fields'].get('Target', '')
-        role = record['fields'].get('Role', '')
-        activity = record['fields'].get('Example activity', '')
-        size = record['fields'].get('Size', '')
-        established = record['fields'].get('Established', '')
-        ceo = record['fields'].get('CEO/Chairman', '')
+        if 'Payroll Giving' not in record['fields']:
+            payroll = ""
+        else:
+            payroll = "yes"
 
-        row = "| " + " | ".join([name_link, target, role, activity, size, established, ceo]) + " |\n"
-        return row
+        if 'Pays PG fees' not in record['fields']:
+            fees = ""
+        else:
+            fees = "yes. This field needs more research."
+
+        provider = record['fields'].get('PG: provider name', '')
+
+        # possibly merge the 'details' rows if it improves table format
+        details_match = record['fields'].get('Details: Matching', '')
+        details_payroll = record['fields'].get('Details: Payroll giving', '')
+        details_other = record['fields'].get('Details: Other', '')
+
+        endorsed = record['fields'].get('Endorsed charity(s)', [''])
+        outcomes = record['fields'].get('Outcomes', '')
+
+        if 'Reference' in record['fields'] and 'Reference link' in record['fields']:
+            ref_text = re.sub('\[(.*)\]', '', record['fields']['Reference']).rstrip()
+            ref_url = record['fields']['Reference link']
+            ref = '[[{}|{}]]'.format(ref_url, ref_text)
+        else:
+            ref = ''
+
+        sources = [ref]
+
+        if 'Other links' in record['fields']:
+            sources.extend(record['fields']['Other links'].split(";"))
+            sources = [s.strip() for s in sources]
+
+        if len(sources) > 0:
+            source_items = '\n\n  * ' + '\n\n  * '.join(filter(None, sources)) + '\n'
+        else:
+            source_items = ''
+
+        replacements = ('COMPANY', company_name), ('SECTOR', sector), ('MATCH', donation), \
+                       ('PAYROLL', payroll), ('FEES', fees), \
+                       ('PROVIDER', provider), ('ENDORSED', ', '.join(endorsed)), \
+                       ('MATCH_DETAILS', details_match), ('PAYROLL_DETAILS', details_payroll), \
+                       ('OTHER_DETAILS', details_other), \
+                       ('OUTCOMES', outcomes), ('LINKS', source_items)
+        paper_page = reduce(lambda a, kv: a.replace(*kv, 1), replacements, self.dw_page_template)
+        return paper_page
+
+    def set_pages(self):
+        relevant_records = []
+        for record in self.records:
+            if 'ftse100' in record['fields']:
+                relevant_records.append(record)
+        new_pages = self.format_pages(relevant_records)
+        # this has to be done with a break of at least 5s
+        for page in new_pages:
+            self.wiki.pages.set(page, new_pages[page])
+            time.sleep(10)
 
 
 class PapersTable(Table):
@@ -696,3 +649,153 @@ class PapersTable(Table):
         paper_page = reduce(lambda a, kv: a.replace(*kv, 1), replacements, self.dw_page_template)
         return paper_page
 
+
+class CategoryTable(Table):
+    def __init__(self, wiki, base_name, table_name, user_key):
+        super(CategoryTable, self).__init__(wiki, base_name, table_name, user_key)
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+        self.dw_table_page = 'tables:tool_categories'
+        self.included_in = 'tools:tool_categories'
+        self.main_column = '(Sub)Category or theme'
+        self.header = "\n^ Category ^ Description ^\n"
+        self.linked_pages = False
+
+    def construct_row(self, record):
+        """
+        Construct a row for the tools table based on data delivered by Airtable.
+        :param record: a single record from the Airtable
+        :return: a formatted row for DW
+        """
+        cat_name = record['fields']['(Sub)Category or theme']
+        description = record['fields']['Description'].rstrip()
+
+        row = "| " + cat_name + " | " + description + " |\n"
+        return row
+
+    def format_table(self):
+        table_content = '<datatables dom="t" page-length="100">\n'
+        # initialize table content with the header
+        table_content += self.header
+        # construct the rows for all available records using the corresponding constructor function
+        for record in self.records:
+            # we only consider records in which the main column is not empty
+            if (self.main_column is not None) and (self.main_column not in record['fields']):
+                pass
+            else:
+                table_content += self.construct_row(record)
+        table_content += '</datatables>\n'
+        return table_content
+
+
+class ExperimentTable(Table):
+
+    def __init__(self, wiki, base_name, table_name, user_key):
+        super(ExperimentTable, self).__init__(wiki, base_name, table_name, user_key)
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+        self.dw_table_page = 'tables:data_experiments'
+        self.included_in = 'iifwiki:dataexperiments'
+        self.main_column = 'Experiment'
+        self.header = "\n^ Experiment ^ N ^ Endowment ^ Share donating ^ Share donated ^ Mean donation ^\
+                            SD ^ SD/Mean ^ Effect Size ^ References ^\n"
+        self.linked_pages = False
+
+    def construct_row(self, record):
+        """
+        Construct a row for the charity experiments table based on data delivered by Airtable.
+        :param record: a single record from the Airtable
+        :return: a formatted row for DW
+        """
+        experiment_name = record['fields']['Experiment']
+        n = record['fields'].get('N ', '')
+        endowment = record['fields'].get('Endowment', '')
+        share_donating = record['fields'].get('Share donating', '')
+        share_donated = record['fields'].get('Share donated', '')
+        exp_mean = record['fields'].get('Mean donation', '')
+        exp_sd = record['fields'].get('SD', '')
+        sd_mean = record['fields'].get('SD/Mean', '')
+        effect = record['fields'].get('Effect Size %', '')
+        ref = record['fields'].get('References', '')
+
+        row = "| " + experiment_name + " | " + n + " | " + endowment + " | " +\
+              share_donating + " | " + share_donated + " | " + exp_mean + " | " +\
+              exp_sd + " | " + sd_mean + " | " + effect + " | " + ref + " |\n"
+        return row
+
+
+class ExperienceTable(Table):
+
+    def __init__(self, wiki, base_name, table_name, user_key):
+        super(ExperienceTable, self).__init__(wiki, base_name, table_name, user_key)
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+        self.dw_table_page = 'tables:experiences_of_workplace_activists'
+        self.included_in = 'iifwiki:experiences_of_workplace_activists'
+        self.main_column = 'Name'
+        self.header = "\n^ Name ^ Organisation ^ Employees ^ " \
+                      "Charity ^ Description ^ Participants ^ Raised ^ Results ^\n"
+        self.linked_pages = False
+
+    def construct_row(self, record):
+        """
+        Construct a row for fundraising experiences table based on data delivered by Airtable.
+        :param record: a single record from the Airtable
+        :return: a formatted row for DW
+        """
+        person_name_role = record['fields']['Name'] + ", " + record['fields'].get('Role', '')
+        organisation = record['fields'].get('Organisation', '') + ", " + record['fields'].get('Organisation type', '')
+        num_employees = record['fields'].get('Number of employees', '')
+        # experience_type = record['fields'].get('Experience type', '')
+        charity = record['fields'].get('Charity', '')
+        description = record['fields'].get('Event description', '')
+        num_participants = record['fields'].get('Number of participants', '')
+        raised = record['fields'].get('Amount raised', '')
+
+        results = "**Choice motivation**: " + record['fields'].get('Choice motivation', '') + "\\\\ " +\
+                  "**Communication channel**: " + record['fields'].get('Communication channel', '') + "\\\\ " +\
+                  "**Main arguments**: " + record['fields'].get('Main arguments', '') + "\\\\ " +\
+                  "**Problems faced**: " + record['fields'].get('Problems faced', '') + "\\\\ " +\
+                  "**Evaluation**: " + record['fields'].get('Evaluation', '') + "\\\\ " +\
+                  "**Additional information**: " + record['fields'].get('Comments', '')
+
+        row = "| " + " | ".join([person_name_role, organisation, str(num_employees), charity,
+                                description, str(num_participants), raised, results]) + " |\n"
+        return row
+
+
+class ThirdSectorTable(Table):
+
+    def __init__(self, wiki, base_name, table_name, user_key):
+        super(ThirdSectorTable, self).__init__(wiki, base_name, table_name, user_key)
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+        self.dw_table_page = 'tables:third_sector_infrastructure_details'
+        self.included_in = 'iifwiki:third_sector_infrastructure_details'
+        self.main_column = 'Name'
+        self.header = "\n^ Name ^ Whom does it help? ^ Role ^ Example activity ^ " \
+                      "Size ^ Established ^ CEO/Chairman ^\n"
+        self.linked_pages = False
+
+    def construct_row(self, record):
+        """
+        Construct a row for third-sector organisations table based on data delivered by Airtable.
+        :param record: a single record from the Airtable
+        :return: a formatted row for DW
+        """
+        name = record['fields']['Name']
+        link = record['fields'].get('Link', '')
+        if link != '':
+            name_link = '[[{}|{}]]'.format(link, name)
+        else:
+            name_link = name
+
+        target = record['fields'].get('Target', '')
+        role = record['fields'].get('Role', '')
+        activity = record['fields'].get('Example activity', '')
+        size = record['fields'].get('Size', '')
+        established = record['fields'].get('Established', '')
+        ceo = record['fields'].get('CEO/Chairman', '')
+
+        row = "| " + " | ".join([name_link, target, role, activity, size, established, ceo]) + " |\n"
+        return row

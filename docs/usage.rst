@@ -62,3 +62,16 @@ Update a set of pages that have been previously published on the official Wiki b
 Create a Papers table and a set of pages and push them to the local test Wiki::
 
     python3 main.py test papers_mass create both
+
+
+
+Automatic updating
+===================
+
+In order to perform regular maintenance, a different script has to be run as follows::
+
+    python3 update_all.py
+
+
+This will check all the defined tables for updated records and update the table published on the Wiki, as well as
+associated pages.
