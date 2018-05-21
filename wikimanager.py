@@ -41,7 +41,7 @@ class WikiManager:
             self.table = None
             self.used_table_name = None
             self.defined_tables = ['Tools', 'ftse100+givingpolicies', 'Categories',
-                                   'Charity experiments', 'Third sector', 'papers_mass']
+                                   'Charity experiments', 'Experiences', 'Third sector', 'papers_mass']
 
     def setup_table(self, table_name):
         """Initialize the connection to a given table in Airtable.
@@ -69,6 +69,11 @@ class WikiManager:
             self.table = wikicontents.ExperimentTable(self.wiki, table_base, table_name, self.user_key)
             self.used_table_name = table_name
 
+        elif table_name == 'Experiences':
+            table_base = 'appBzOSifwBqSuVfH'
+            self.table = wikicontents.ExperienceTable(self.wiki, table_base, table_name, self.user_key)
+            self.used_table_name = table_name
+
         elif table_name == 'Third sector':
             table_base = 'appBzOSifwBqSuVfH'
             self.table = wikicontents.ThirdSectorTable(self.wiki, table_base, table_name, self.user_key)
@@ -94,16 +99,16 @@ class WikiManager:
         self.table.set_table_page()
         print("Go to {} in your DokuWiki to see the table.".format(self.table.dw_table_page))
         if self.used_table_name not in self.defined_tables:
-            print("Go to '{}' in your DokuWiki to see the table. To change its formatting, "
-                  "please implement an appropriate class.".format(self.table.dw_table_page))
+            print("To change the table formatting, implement an appropriate class.")
 
     def create_pages(self):
         """Create a set of Wiki pages from an Airtable table."""
         self.table.set_pages()
-        print("Go to {} namespace in your DokuWiki to see the pages.".format(self.table.root_namespace))
         if self.used_table_name not in self.defined_tables:
             print("Go to 'test:test_page' in your DokuWiki to see the possible page content. "
                   "To change its formatting, please implement an appropriate class.")
+        else:
+            print("Go to {} namespace in your DokuWiki to see the pages.".format(self.table.root_namespace))
 
     def create_table_pages(self):
         """Create a table and a set of pages on the Wiki from an Airtable table."""
@@ -111,13 +116,13 @@ class WikiManager:
         print("Go to {} in your DokuWiki to see the table.".format(self.table.dw_table_page))
         if self.table.linked_pages:
             self.table.set_pages()
-            print("Go to {} namespace in your DokuWiki to see the pages.".format(self.table.root_namespace))
+            if self.used_table_name not in self.defined_tables:
+                print("Go to 'test:test_page' in your DokuWiki to see the possible page content.\n "
+                      "To change the formatting of this table and pages, implement an appropriate class.")
+            else:
+                print("Go to {} namespace in your DokuWiki to see the pages.".format(self.table.root_namespace))
         else:
             print("This table does not have associated pages. Only the table has been created.")
-        if self.used_table_name not in self.defined_tables:
-            print("Go to '{}' in your DokuWiki to see the table.".format(self.table.dw_table_page))
-            print("Go to 'test:test_page' in your DokuWiki to see the possible page content. "
-                  "To change the formatting of this table and pages, implement an appropriate class.")
 
     def update_table(self):
         """Re-generate a full table on the Wiki if any record in Airtable table has been modified.
@@ -154,3 +159,4 @@ class WikiManager:
             self.table.set_table_page()
             self.table.records = modified_records
             self.table.set_pages()
+            print("Updated {} records in table {}.".format(len(modified_records), self.used_table_name))

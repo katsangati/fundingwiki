@@ -2,13 +2,20 @@
    sphinx-quickstart on Wed Apr 25 10:25:12 2018.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
+   TODO: instruction case: I want to change format of a table/page
+   TODO: update everything
 
+
+***************************
 fundingwiki documentation
-========================================================
+***************************
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
+
+   usage
+   development
 
 The aim of this package is to provide a two-way connection between
 Innovations in Fundraising Wiki_ and an Airtable database.
@@ -30,6 +37,7 @@ Features
 - Create new tables and pages on the wiki based on the database content
 - Update existing wiki tables and pages based on changes to the database content
 
+
 Modules
 --------
 
@@ -38,28 +46,20 @@ Modules
 :py:mod:`wikicontents`
 
 
-Usage
-------
-
-Clone the package_ from GitHub and run main.py with appropriate parameters.
-
-.. _package: https://github.com/kabramova/fundingwiki
-
-
 Contribute
-----------
+-----------
 
 - Issue Tracker: https://github.com/kabramova/fundingwiki/issues
 - Source Code: https://github.com/kabramova/fundingwiki
 
 Support
--------
+--------
 
 If you are having issues, please let us know in the Issue Tracker.
 
 
 License
--------
+--------
 
 The project is licensed under the BSD license.
 
