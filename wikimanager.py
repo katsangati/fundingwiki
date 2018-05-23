@@ -40,8 +40,8 @@ class WikiManager:
             self.user_key = os.environ['AIRTABLE_API_KEY']
             self.table = None
             self.used_table_name = None
-            self.defined_tables = ['Tools', 'ftse100+givingpolicies', 'Categories',
-                                   'Charity experiments', 'Experiences', 'Third sector', 'papers_mass']
+            self.defined_tables = ['Tools', 'Giving_companies_ftse', 'Giving_companies_other', 'Charity_experiments',
+                                   'Experiences', 'Third_sector', 'papers_mass', 'Categories']
 
     def setup_table(self, table_name):
         """Initialize the connection to a given table in Airtable.
@@ -52,19 +52,23 @@ class WikiManager:
 
         Returns:
             Table object
-
         """
         if table_name == 'Tools':
             table_base = 'appBzOSifwBqSuVfH'
             self.table = wikicontents.ToolTable(self.wiki, table_base, table_name, self.user_key)
             self.used_table_name = table_name
 
-        elif table_name == 'ftse100+givingpolicies':
+        elif table_name == 'Giving_companies_ftse':
             table_base = 'apprleNrkR7dTtW60'
-            self.table = wikicontents.FtseTable(self.wiki, table_base, table_name, self.user_key)
+            self.table = wikicontents.FtseTable(self.wiki, table_base, table_name, self.user_key, 'FTSE100')
             self.used_table_name = table_name
 
-        elif table_name == 'Charity experiments':
+        elif table_name == 'Giving_companies_other':
+            table_base = 'apprleNrkR7dTtW60'
+            self.table = wikicontents.FtseTable(self.wiki, table_base, 'Giving companies', self.user_key, 'Other')
+            self.used_table_name = table_name
+
+        elif table_name == 'Charity_experiments':
             table_base = 'appBzOSifwBqSuVfH'
             self.table = wikicontents.ExperimentTable(self.wiki, table_base, table_name, self.user_key)
             self.used_table_name = table_name
@@ -74,7 +78,7 @@ class WikiManager:
             self.table = wikicontents.ExperienceTable(self.wiki, table_base, table_name, self.user_key)
             self.used_table_name = table_name
 
-        elif table_name == 'Third sector':
+        elif table_name == 'Third_sector':
             table_base = 'appBzOSifwBqSuVfH'
             self.table = wikicontents.ThirdSectorTable(self.wiki, table_base, table_name, self.user_key)
             self.used_table_name = table_name
