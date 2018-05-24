@@ -40,7 +40,7 @@ class WikiManager:
             self.user_key = os.environ['AIRTABLE_API_KEY']
             self.table = None
             self.used_table_name = None
-            self.defined_tables = ['Tools', 'Giving_companies_ftse', 'Giving_companies_other', 'Charity_experiments',
+            self.defined_tables = ['Tools', 'Charity_experiments', 'Giving_companies_ftse', 'Giving_companies_other',
                                    'Experiences', 'Third_sector', 'papers_mass', 'Categories']
 
     def setup_table(self, table_name):
@@ -60,12 +60,14 @@ class WikiManager:
 
         elif table_name == 'Giving_companies_ftse':
             table_base = 'apprleNrkR7dTtW60'
+            table_name = 'Giving_companies'
             self.table = wikicontents.FtseTable(self.wiki, table_base, table_name, self.user_key, 'FTSE100')
             self.used_table_name = table_name
 
         elif table_name == 'Giving_companies_other':
             table_base = 'apprleNrkR7dTtW60'
-            self.table = wikicontents.FtseTable(self.wiki, table_base, 'Giving companies', self.user_key, 'Other')
+            table_name = 'Giving_companies'
+            self.table = wikicontents.FtseTable(self.wiki, table_base, table_name, self.user_key, 'Other')
             self.used_table_name = table_name
 
         elif table_name == 'Charity_experiments':
