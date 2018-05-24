@@ -363,11 +363,10 @@ class ToolTable(Table):
 
 
 class FtseTable(Table):
-    def __init__(self, wiki, base_name, table_name, user_key):
+    def __init__(self, wiki, base_name, table_name, user_key, company_group):
         super(FtseTable, self).__init__(wiki, base_name, table_name, user_key)
         self.airtable = at.Airtable(base_name, table_name, user_key)
         self.records = self.airtable.get_all()
-        self.dw_table_page = 'tables:employee_giving_schemes'
         self.included_in = 'iifwiki:employee_giving_schemes'
         self.main_column = 'Company'
         self.header = "\n^ Company ^ Sector ^ Donation Matching ^ Payroll Giving ^ DM Details ^ " \
@@ -390,6 +389,8 @@ class FtseTable(Table):
                                 'LINKS\n\\\\\n'
         self.dw_page_name_column = 'Company'
         self.root_namespace = 'companies:'
+        self.company_group = company_group  # (str) use this to differentiate between FTSE companies and other
+        self.dw_table_page = 'tables:employee_giving_schemes_' + self.company_group
 
     def construct_row(self, record):
         """
@@ -398,8 +399,8 @@ class FtseTable(Table):
         :return: a formatted row for DW
         """
 
-        # include only rows where ftse100 is ticked
-        if 'ftse100' not in record['fields']:
+        # include only rows where the relevant group option appears
+        if record['fields']['Company group'] != self.company_group:
             return ''
 
         company_name = record['fields']['Company']
@@ -504,7 +505,7 @@ class FtseTable(Table):
     def set_pages(self):
         relevant_records = []
         for record in self.records:
-            if 'ftse100' in record['fields']:
+            if record['fields']['Company group'] == self.company_group:
                 relevant_records.append(record)
         new_pages = self.format_pages(relevant_records)
         # this has to be done with a break of at least 5s
