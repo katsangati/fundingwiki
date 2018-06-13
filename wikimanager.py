@@ -40,8 +40,10 @@ class WikiManager:
             self.user_key = os.environ['AIRTABLE_API_KEY']
             self.table = None
             self.used_table_name = None
-            self.defined_tables = ['Tools', 'Giving_companies_ftse', 'Giving_companies_other', 'Charity_experiments',
-                                   'Experiences', 'Third_sector', 'papers_mass', 'Categories']
+            self.defined_tables = ['Tools', 'Charity_experiments', 'Giving_companies_ftse', 'Giving_companies_other',
+                                   'Experiences', 'Third_sector', 'papers_mass_qualitative',
+                                   'paper_mass_quantitative', 'Categories']
+            self.maintained_tables = ['paper_mass']
 
     def setup_table(self, table_name):
         """Initialize the connection to a given table in Airtable.
@@ -60,12 +62,14 @@ class WikiManager:
 
         elif table_name == 'Giving_companies_ftse':
             table_base = 'apprleNrkR7dTtW60'
+            table_name = 'Giving_companies'
             self.table = wikicontents.FtseTable(self.wiki, table_base, table_name, self.user_key, 'FTSE100')
             self.used_table_name = table_name
 
         elif table_name == 'Giving_companies_other':
             table_base = 'apprleNrkR7dTtW60'
-            self.table = wikicontents.FtseTable(self.wiki, table_base, 'Giving companies', self.user_key, 'Other')
+            table_name = 'Giving_companies'
+            self.table = wikicontents.FtseTable(self.wiki, table_base, table_name, self.user_key, 'Other')
             self.used_table_name = table_name
 
         elif table_name == 'Charity_experiments':
@@ -83,9 +87,16 @@ class WikiManager:
             self.table = wikicontents.ThirdSectorTable(self.wiki, table_base, table_name, self.user_key)
             self.used_table_name = table_name
 
-        elif table_name == 'papers_mass':
+        elif table_name == 'papers_mass_qualitative':
             table_base = 'appBzOSifwBqSuVfH'
+            table_name = 'papers_mass'
             self.table = wikicontents.PapersTable(self.wiki, table_base, table_name, self.user_key)
+            self.used_table_name = table_name
+
+        elif table_name == 'papers_mass_quantitative':
+            table_base = 'appBzOSifwBqSuVfH'
+            table_name = 'papers_mass'
+            self.table = wikicontents.MetaAnalysisTable(self.wiki, table_base, table_name, self.user_key)
             self.used_table_name = table_name
 
         elif table_name == 'Categories':
@@ -127,6 +138,11 @@ class WikiManager:
                 print("Go to {} namespace in your DokuWiki to see the pages.".format(self.table.root_namespace))
         else:
             print("This table does not have associated pages. Only the table has been created.")
+
+    def update_table_source(self):
+        for record in self.table.records:
+            if 'Modified' in record['fields']:
+                self.table.update_record(record)
 
     def update_table(self):
         """Re-generate a full table on the Wiki if any record in Airtable table has been modified.

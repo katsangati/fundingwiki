@@ -152,3 +152,59 @@ Once a new table class has been implemented, it needs to be added in two places 
 
 where NAME is the name of the table in the AT database, BASE API KEY is the API key for the base in which that table is contained
 and SOMETABLE is the name of the newly defined class.
+
+
+Modifying an existing class
+----------------------------
+
+Suppose we wanted to add a new column to a given table, both in the table format and in associated pages. We'll consider
+an example of adding a new column called "Total max EA-benefit" to the FTSE100 table. Accomplishing this task will
+require several steps:
+
+1. Insert a new column name in the ``self.header`` of the ``FtseTable`` class::
+
+    # before
+    self.header = "\n^ Company ^ Sector ^ Donation Matching ^ Payroll Giving ^ DM Details ^ " \
+                      "PG Details ^ Other Details ^ Endorsed ^ Outcomes ^ Reference ^\n"
+
+    # after
+    self.header = "\n^ Company ^ Sector ^ Donation Matching ^ Payroll Giving ^ DM Details ^ " \
+                      "Total EA benefit ^ PG Details ^ Other Details ^ Endorsed ^ Outcomes ^ Reference ^\n"
+
+2. Insert where the information from the column will go in the ``self.dw_page_template`` (elipsis and comments are here for demonstration only - remove them if copying)::
+
+    self.dw_page_template = ...
+                            # changed end of line here
+                            '===Details of matching schemes===\n\nMATCH_DETAILS\n\n' \
+                            # added line here
+                            '**Total max EA benefit**: BENEFIT\n\\\\\n\\\\\n' \
+                            ...
+
+3. Somewhere in ``construct_row`` but before the final row variable assignment, insert a statement that fetches the new column data and assigns it to a variable::
+
+    # this gets a number if it is defined in the column or an empty string if not
+    benefit = record['fields'].get('Total max EA-benefit', '')
+
+4. Insert the new variable in the appropriate place in the row assignment (appropriate means in the place corresponding to the header we defined in step 1 above), separated with a column separator character::
+
+    # if a new variable is a number, it needs to be converted to a string
+    row = "| " + company_dw_table_page + " | " + sector + " | " + \
+              donation + " | " + payroll + " | " + details_match + " | " + \
+              str(benefit) + " | " + details_payroll + " | " + details_other + " | " + \
+              ', '.join(endorsed) + " | " + outcomes + " | " + ref + " |\n"
+
+5. Copy-paste the same variable as in step 3 into the ``create_page`` function before the final replacements variable assignment.
+
+6. Insert the new variable in the replacements assignment (the order doesn't matter here but for book-keeping it's best to place it where it will appear on the page)::
+
+    # in brackets write the uppercase placeholder string first,
+    # then string representation of the new variable
+    replacements = ...
+                   ('MATCH_DETAILS', details_match), ('BENEFIT', str(benefit)), \
+                   ('PAYROLL_DETAILS', details_payroll), \
+                   ...
+
+7. To push the new data to the Wiki, run the ``main.py`` script with ``create`` parameter::
+
+    python3 main.py official Giving_companies_ftse create both
+

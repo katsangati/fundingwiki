@@ -28,6 +28,8 @@ Currently only the database-to-wiki connection is implemented. That is, all the 
 need to be done inside the database and then pushed to the wiki. In the future we plan to implement a wiki-to-database
 connection that would allow content from the wiki to be pushed to the database.
 
+Note: The package requires Python 3.
+
 .. _Wiki: http://innovationsinfundraising.org/doku.php
 
 
