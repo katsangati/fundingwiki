@@ -7,10 +7,20 @@ from functools import reduce
 import string
 import re
 import time
+import doi_resolver as dr
+from pybtex.database.input import bibtex
 
 
 # define a punctuation stripper for using later in pagename constructors
 punctuation_translator = str.maketrans('', '', string.punctuation)
+bibtex_translator = str.maketrans('', '', '\\{}')
+
+
+def insert_check(value, record):
+    if value not in record['fields']:
+        return ""
+    else:
+        return u'\u2713'
 
 
 def get_linked_items(airtable, column_name, record, linked_column_name):
@@ -36,6 +46,55 @@ def get_linked_items(airtable, column_name, record, linked_column_name):
     else:
         items = ''
     return items
+
+
+def format_citation(record):
+    """Format publication citation for paper pages according to its type.
+
+    Args:
+        record: which record to use to format the reference
+
+    Returns:
+        str: formatted reference
+
+    """
+    bib_type = record['fields']['Publication_type']
+
+    authors = record['fields'].get('Authors', '')
+    year = record['fields'].get('Year', '')
+    title = record['fields']['Title']
+    link = record['fields'].get('URL', '')
+
+    if link == '':
+        title = '//{}//'.format(title)
+    else:
+        title = '//[[{}|{}]]//'.format(link, title)
+
+    if bib_type == "article":
+        journal = record['fields'].get('Journal', '')
+        journal = journal.translate(bibtex_translator).lower().title()
+        volume = record['fields'].get('Vol', '')
+        number = record['fields'].get('Num', '')
+        pages = record['fields'].get('Pages', '')
+        # Author, N. (year). Title. Journal Name, Vol, Num, Pages.
+        reference = '{}, ({}). {}. {}, {}, {}, {}.'.format(authors, year, title, journal, volume, number, pages)
+
+    elif bib_type == "incollection":
+        book = record['fields'].get('Book_title', '')
+        pages = record['fields'].get('Pages', '')
+        # Author, N. (year). Chapter title, Pages. In: Book title.
+        reference = '{}, ({}). {}, {}. In: {}.'.format(authors, year, title, pages, book)
+
+    elif bib_type == "techreport":
+        institution = record['fields'].get('Institution', '')
+        # Author, N. (year). Title. Institution.
+        reference = '{}, ({}). {}. {}.'.format(authors, year, title, institution)
+
+    else:
+        # Author, N. (year). Title.
+        reference = '{}, ({}). {}.'.format(authors, year, title)
+
+    return reference
 
 
 class Table:
@@ -572,23 +631,14 @@ class PapersTable(Table):
                                 '===Paper summary===\n\nSUMMARY\n\\\\\n' \
                                 '===Discussion===\n\nDISCUSSION\n\\\\\n' \
                                 '===Evaluation===\n\nEVALUATION\n\\\\\n' \
+                                'META\n\\\\\n' \
                                 'This paper has been added by CREATORS'  # and evaluated by EVALUATORS'
-        # TODO incorporate illustration when available
+        # TODO incorporate illustration when available Shang2009
         self.dw_page_name_column = 'Title'
         self.root_namespace = 'papers:'
         # TODO bottom tabular
-        """
-        At the bottom of the page there should be some expandable table with a header
-        'Meta-analysis and evaluation content'
-        that will draw from a meta-analysis table
-        The following columns are relevant:
-        peer-reviewed - rating - paper citations - replications - repl success - pre-registered - verified -
-        participants aware - sample demo - design - link to raw data - simple comparison - sample size -
-        share treated - key components - main treatment - mean don - sd don - endowment - curr -
-        year_run - conversion rate - Effect size original units - Effect size(USD - 2018) -
-        SE of effect size - SE calc method - Effect size(Share of mean donation) - Mean incidence-
-        Effect size(incidence) - Headline p - value
-        """
+        """ At the bottom of the page there should be some expandable table with a header
+        'Meta-analysis and evaluation content' """
 
     def construct_row(self, record):
         """
@@ -635,17 +685,9 @@ class PapersTable(Table):
         :param record: a single record from the Airtable
         :return: a formatted page
         """
+
         title = record['fields']['Title']
-        authors = record['fields'].get('Authors', '')
-        journal = record['fields'].get('Journal', '')
-        pages = record['fields'].get('Pages', '')
-        year = record['fields'].get('Year', '')
-        link = record['fields'].get('URL', '')
-        # doi = record['fields'].get('doi', '') none of this is filled or works yet
-        if link == '':
-            reference = '{}, ({}). {}. {}, {}.'.format(authors, year, title, journal, pages)
-        else:
-            reference = '{}, ({}). [[{}|{}]]. {}, {}.'.format(authors, year, link, title, journal, pages)
+        reference = format_citation(record)
 
         evidence = record['fields'].get('Type of evidence', [''])
         keywords = ', '.join(record['fields'].get('keywords', ['']))
@@ -680,9 +722,255 @@ class PapersTable(Table):
                        ('TOOLS', ', '.join(related_tools)), ('THEORIES', theories), \
                        ('CRITIQUES', critiques), ('TARGETS', charities), ('DONORS', donors), \
                        ('SUMMARY', summary), ('DISCUSSION', discussion), \
-                       ('EVALUATION', evaluation), ('CREATORS', creators)  # , ('EVALUATORS', evaluators)
+                       ('EVALUATION', evaluation), ('META', self.make_meta(record)), \
+                       ('CREATORS', creators)  # , ('EVALUATORS', evaluators)
         paper_page = reduce(lambda a, kv: a.replace(*kv, 1), replacements, self.dw_page_template)
         return paper_page
+
+    def update_record(self, record):
+        # if doi present
+        if 'doi' in record['fields']:
+            doi = record['fields']['doi']
+
+            # fill in bibtex
+            bib = dr.doi2bib(doi)
+            self.airtable.update(record['id'], {'bibtexfull': bib})
+
+            # fill in citation count
+            citations = dr.doi2count(doi)
+            self.airtable.update(record['id'], {'num_citations': int(citations)})
+
+            # fill in bibliographic information
+            self.fill_bibliography(record)
+
+        elif 'bibtexfull' in record['fields']:
+            # fill in bibliographic information
+            self.fill_bibliography(record)
+
+        else:
+            print("This paper record has neither doi nor bibtex specified.")
+            pass
+        time.sleep(5)
+
+    def fill_bibliography(self, record):
+        bib_string = record['fields']['bibtexfull']
+
+        # fill in citation data
+        parser = bibtex.Parser()
+        bib_data = parser.parse_string(bib_string)
+        k = bib_data.entries.keys()[0]
+        print(k)
+        bib_type = bib_data.entries[k].type
+        self.airtable.update(record['id'], {'Publication_type': bib_type})
+
+        authors_list = [p.__str__() for p in bib_data.entries[k].persons['author']]
+        authors = "; ".join(authors_list)
+        self.airtable.update(record['id'], {'Authors': authors})
+
+        year = bib_data.entries[k].fields.get('year', '')
+        self.airtable.update(record['id'], {'Year': year})
+
+        title = bib_data.entries[k].fields['title']
+        self.airtable.update(record['id'], {'Title': title})
+
+        if bib_type == "article":
+            journal = bib_data.entries[k].fields['journal']
+            self.airtable.update(record['id'], {'Journal': journal})
+            volume = bib_data.entries[k].fields.get('volume', '')
+            self.airtable.update(record['id'], {'Vol': volume})
+            number = bib_data.entries[k].fields.get('number', '')
+            self.airtable.update(record['id'], {'Num': number})
+            pages = bib_data.entries[k].fields.get('pages', '')
+            self.airtable.update(record['id'], {'Pages': pages})
+
+        elif bib_type == "incollection":
+            book = bib_data.entries[k].fields['booktitle']
+            book = book.lower().title()
+            self.airtable.update(record['id'], {'Book_title': book})
+            pages = bib_data.entries[k].fields.get('pages', '')
+            self.airtable.update(record['id'], {'Pages': pages})
+
+        elif bib_type == "techreport":
+            institution = bib_data.entries[k].fields.get('institution', '')
+            self.airtable.update(record['id'], {'Institution': institution})
+
+        # nothing to add for book and misc
+
+        # create parencite
+        first_author = bib_data.entries[k].persons['author'][0].last_names[0]
+
+        if len(authors_list) == 0:
+            parencite = ""
+        elif len(authors_list) == 1:
+            parencite = "({}, '{})".format(first_author, year[-2:])
+        elif len(authors_list) == 2:
+            second_author = bib_data.entries[k].persons['author'][1].last_names[0]
+            parencite = "({} & {}, '{})".format(first_author, second_author[0], year[-2:])
+        else:
+            parencite = "({} ea, '{})".format(first_author, year[-2:])
+
+        self.airtable.update(record['id'], {'parencite': parencite})
+
+    @staticmethod
+    def make_meta(record):
+        numcit = str(record['fields'].get('num_citations', ''))
+        data = ', '.join(record['fields'].get('Link to raw data', ''))  # link?
+        peerrev = insert_check('Peer-reviewed pub?', record)
+        rating = str(record['fields'].get('Journal rating (1-5)', ''))
+        replic_link = ', '.join(record['fields'].get('Exact replications link?', ''))  # link?
+        replic_res = insert_check('Replication success?', record)
+        prereg = insert_check('Preregistered?', record)
+        verified = insert_check('Verified collection?', record)
+        aware = insert_check('Participants aware?', record)
+        demog = ', '.join(record['fields'].get('Sample demog?', ''))
+        design = insert_check('Between-subject design?', record)
+        compar = insert_check('Simple_comparison?', record)
+        sampsize = str(record['fields'].get('Sample size', ''))
+        share = str(record['fields'].get('Share treated', ''))
+        components = ', '.join(record['fields'].get('Key components of ask', ''))
+        treat = record['fields'].get('Main treatment', '')
+        mean_don = str(record['fields'].get('Mean don (usd-2018); control group', ''))
+        sd_don = str(record['fields'].get('SD: don', ''))
+        endow_descr = record['fields'].get('Endowment_description', '')
+        endow_usd = record['fields'].get('Endowment (usd-2018)', '')
+        curr = record['fields'].get('Currency', '')
+        year = str(record['fields'].get('year_run', ''))
+        convert = str(record['fields'].get('conversion rate', ''))
+        eff_orig = str(record['fields'].get('Effect-size-original-units', ''))
+        eff_usd = str(record['fields'].get('Effect size (USD-2018)', ''))
+        se_eff = str(record['fields'].get('SE of effect size', ''))
+        se_calc = str(record['fields'].get('SE calc method', ''))
+        eff_share = str(record['fields'].get('Effect size (Share of mean donation)', ''))
+        mean_inc = str(record['fields'].get('Mean incidence', ''))
+        eff_inc = str(record['fields'].get('Effect size (incidence)', ''))
+        pval = str(record['fields'].get('Headline p-value', ''))
+        pval_descr = record['fields'].get('Describe headline p-val', '')
+
+        meta_template = '<button collapse="meta">Meta-analysis data</button><collapse id="meta" collapsed="true"><well>'\
+                        '<WRAP third column>' \
+                        '**Study year**: R01\n\n' \
+                        '**Data link**: R02\n\n' \
+                        '**Peer reviewed**: R03\n\n' \
+                        '**Journal rating**: R04\n\n' \
+                        '**Citations**: R05\n\n' \
+                        '**Replications**: R06\n\n' \
+                        '**Replication success**: R07\n\n' \
+                        '**Pre-registered**: R08\n\n' \
+                        '**Verified**: R09\n\n' \
+                        '**Participants aware**: R10\n\n' \
+                        '**Demographics**: R11\n\n' \
+                        '</WRAP>' \
+                        '<WRAP third column>' \
+                        '**Design**: R12\n\n' \
+                        '**Simple comparison**: R13\n\n' \
+                        '**Sample size**: R14\n\n' \
+                        '**Share treated**: R15\n\n' \
+                        '**Key components**: R16\n\n' \
+                        '**Main treatment**: R17\n\n' \
+                        '**Mean donation**: R18\n\n' \
+                        '**SD donation**: R19\n\n' \
+                        '**Endowment amount**: R20\n\n' \
+                        '**Endowment description**: R21\n\n' \
+                        '**Currency**: R22\n\n' \
+                        '</WRAP>' \
+                        '<WRAP third column>' \
+                        '**Conversion rate**: R23\n\n' \
+                        '**Effect size original**: R24\n\n' \
+                        '**Effect size USD**: R25\n\n' \
+                        '**SE effect size**: R26\n\n' \
+                        '**SE calculation**: R27\n\n' \
+                        '**Effect size share**: R28\n\n' \
+                        '**Mean incidence**: R29\n\n' \
+                        '**Effect size incidence**: R30\n\n' \
+                        '**Headline p-val**: R31\n\n' \
+                        '**P-val description**: R32\n\n' \
+                        '</WRAP>' \
+                        '</well></collapse>'
+
+        vars = [year, data, peerrev, rating, numcit, replic_link, replic_res,
+                prereg, verified, aware, demog, design, compar, sampsize, share, components, treat,
+                mean_don, sd_don, endow_usd, endow_descr, curr, convert, eff_orig, eff_usd, se_eff,
+                se_calc, eff_share, mean_inc, eff_inc, pval, pval_descr]
+        keys = ['R0' + str(i) for i in range(1, 10)] + ['R' + str(i) for i in range(10, 33)]
+
+        replacements = tuple(zip(keys, vars))
+        meta_well = reduce(lambda a, kv: a.replace(*kv, 1), replacements, meta_template)
+        return meta_well
+
+
+class MetaAnalysisTable(Table):
+
+    def __init__(self, wiki, base_name, table_name, user_key):
+        super(MetaAnalysisTable, self).__init__(wiki, base_name, table_name, user_key)
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+        self.dw_table_page = 'tables:meta'
+        self.included_in = 'papers:meta_analysis'
+        self.main_column = 'parencite'
+        self.header = "\n^ Reference ^ Study year ^ Data link ^ Peer reviewed ^ Journal rating ^ " \
+                      "Citations ^ Replications ^ Replication success ^ Pre-registered ^" \
+                      "Verified ^ Participants aware ^ Demographics ^ Design ^" \
+                      "Simple comparison ^ Sample size ^ Share treated ^ Key components ^" \
+                      "Main treatment ^ Mean donation ^ SD donation ^ Endowment amount ^" \
+                      "Endowment description ^ Currency ^ Conversion rate ^" \
+                      "Effect size original ^ Effect size USD ^ SE effect size ^" \
+                      "SE calculation ^ Effect size share ^ Mean incidence ^" \
+                      "Effect size incidence ^ Headline p-val ^ P-val description" \
+                      "^\n"
+        self.linked_pages = False
+
+    def construct_row(self, record):
+        """
+        Construct a row for papers table based on data delivered by Airtable.
+        :param record: a single record from the Airtable
+        :return: a formatted row for DW
+        """
+        paper_name = record['fields']['parencite']
+        title = record['fields'].get('Title', '')
+        paper_page_name = title.translate(punctuation_translator)
+        # create a DW link to paper page
+        paper_dw_table_page = '[[papers:{}|{}]]'.format(paper_page_name, paper_name)
+
+        numcit = str(record['fields'].get('num_citations', ''))
+        data = ', '.join(record['fields'].get('Link to raw data', ''))  # link?
+        peerrev = insert_check('Peer-reviewed pub?', record)
+        rating = str(record['fields'].get('Journal rating (1-5)', ''))
+        replic_link = ', '.join(record['fields'].get('Exact replications link?', ''))  # link?
+        replic_res = insert_check('Replication success?', record)
+        prereg = insert_check('Preregistered?', record)
+        verified = insert_check('Verified collection?', record)
+        aware = insert_check('Participants aware?', record)
+        demog = ', '.join(record['fields'].get('Sample demog?', ''))
+        design = insert_check('Between-subject design?', record)
+        compar = insert_check('Simple_comparison?', record)
+        sampsize = str(record['fields'].get('Sample size', ''))
+        share = str(record['fields'].get('Share treated', ''))
+        components = ', '.join(record['fields'].get('Key components of ask', ''))
+        treat = record['fields'].get('Main treatment', '')
+        mean_don = str(record['fields'].get('Mean don (usd-2018); control group', ''))
+        sd_don = str(record['fields'].get('SD: don', ''))
+        endow_descr = record['fields'].get('Endowment_description', '')
+        endow_usd = record['fields'].get('Endowment (usd-2018)', '')
+        curr = record['fields'].get('Currency', '')
+        year = str(record['fields'].get('year_run', ''))
+        convert = str(record['fields'].get('conversion rate', ''))
+        eff_orig = str(record['fields'].get('Effect-size-original-units', ''))
+        eff_usd = str(record['fields'].get('Effect size (USD-2018)', ''))
+        se_eff = str(record['fields'].get('SE of effect size', ''))
+        se_calc = str(record['fields'].get('SE calc method', ''))
+        eff_share = str(record['fields'].get('Effect size (Share of mean donation)', ''))
+        mean_inc = str(record['fields'].get('Mean incidence', ''))
+        eff_inc = str(record['fields'].get('Effect size (incidence)', ''))
+        pval = str(record['fields'].get('Headline p-value', ''))
+        pval_descr = record['fields'].get('Describe headline p-val', '')
+
+        row = "| " + " | ".join([paper_dw_table_page, year, data, peerrev, rating, numcit, replic_link, replic_res,
+                                 prereg, verified, aware, demog, design, compar, sampsize, share,
+                                 components, treat, mean_don, sd_don, endow_usd, endow_descr,
+                                 curr, convert, eff_orig, eff_usd, se_eff, se_calc, eff_share,
+                                 mean_inc, eff_inc, pval, pval_descr]) + " |\n"
+
+        return row
 
 
 class CategoryTable(Table):
@@ -810,6 +1098,43 @@ class ThirdSectorTable(Table):
         self.main_column = 'Name'
         self.header = "\n^ Name ^ Whom does it help? ^ Role ^ Example activity ^ " \
                       "Size ^ Established ^ CEO/Chairman ^\n"
+        self.linked_pages = False
+
+    def construct_row(self, record):
+        """
+        Construct a row for third-sector organisations table based on data delivered by Airtable.
+        :param record: a single record from the Airtable
+        :return: a formatted row for DW
+        """
+        name = record['fields']['Name']
+        link = record['fields'].get('Link', '')
+        if link != '':
+            name_link = '[[{}|{}]]'.format(link, name)
+        else:
+            name_link = name
+
+        target = record['fields'].get('Target', '')
+        role = record['fields'].get('Role', '')
+        activity = record['fields'].get('Example activity', '')
+        size = record['fields'].get('Size', '')
+        established = record['fields'].get('Established', '')
+        ceo = record['fields'].get('CEO/Chairman', '')
+
+        row = "| " + " | ".join([name_link, target, role, activity, size, established, ceo]) + " |\n"
+        return row
+
+
+class EffectiveCharities(Table):
+
+    def __init__(self, wiki, base_name, table_name, user_key):
+        super(EffectiveCharities, self).__init__(wiki, base_name, table_name, user_key)
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+        self.dw_table_page = 'tables:effective_charities'
+        self.included_in = 'iifwiki:effective_charities'
+        self.main_column = 'Name'
+        self.header = "\n^ Charity Name ^ Registration Number ^ Just Giving ID ^ Cause area ^ " \
+                      "Rater ^ EAF ^ GiveWell Top'17 ^ GiveWell Standout'17 ^ Life You Can Save ^ ACE ^\n"
         self.linked_pages = False
 
     def construct_row(self, record):
