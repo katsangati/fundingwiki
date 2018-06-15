@@ -208,6 +208,7 @@ class Table:
         self.included_in = None
         self.main_column = None
         self.header = ''
+        self.columndefs = self.tabledefs.get(table_name, None)
         self.linked_pages = True
         # if the table feeds DW pages
         if self.linked_pages:
@@ -273,8 +274,8 @@ class Table:
         row = [v[1] for v in sorted(row, key=lambda x: x[0])]
         return row
 
-    def automatic_construct_row(self, columndefs, record):
-        row = self.fetch_row(columndefs, record)
+    def automatic_construct_row(self, record):
+        row = self.fetch_row(self.columndefs, record)
         formatted_row = "| " + " | ".join(row) + " |\n"
 
         return formatted_row
@@ -299,7 +300,11 @@ class Table:
                 pass
             else:
                 # print(record['fields']['Tool name'])
-                table_content += self.construct_row(record)
+                if self.columndefs is None:
+                    # this means we haven't defined the table yet
+                    table_content += self.construct_row(record)
+                else:
+                    table_content += self.automatic_construct_row(record)
         if page_length is not None:
             table_content += '</datatables>\n'
         return table_content
@@ -402,7 +407,7 @@ class ToolTable(Table):
         # under which namespace the pages will be placed
         self.root_namespace = 'tools:'
 
-    def construct_row(self, record):
+    def automatic_construct_row(self, record):
         """
         Construct a row for the tools table based on data delivered by Airtable.
         :param record: a single record from the Airtable
@@ -522,7 +527,7 @@ class FtseTable(Table):
                     and record['fields']['Company group'] != self.company_group:
                 pass
             else:
-                table_content += self.automatic_construct_row(self.columndefs, record)
+                table_content += self.automatic_construct_row(record)
         table_content += '</datatables>\n'
         return table_content
 
@@ -594,7 +599,7 @@ class PapersTable(Table):
         self.dw_page_name_column = 'Title'
         self.root_namespace = 'papers:'
 
-    def construct_row(self, record):
+    def automatic_construct_row(self, record):
         """
         Construct a row for papers table based on data delivered by Airtable.
         :param record: a single record from the Airtable
@@ -805,19 +810,9 @@ class MetaAnalysisTable(Table):
         self.header = self.construct_header(self.columndefs)
         self.linked_pages = False
 
-    def format_table(self, page_length=None):
-        table_content = '<datatables page-length="100">\n'
-        # initialize table content with the header
-        table_content += self.header
-        # construct the rows for all available records using the corresponding constructor function
-        for record in self.records:
-            # we only consider records in which the main column is not empty
-            if (self.main_column is not None) and (self.main_column not in record['fields']):
-                pass
-            else:
-                table_content += self.automatic_construct_row(self.columndefs, record)
-        table_content += '</datatables>\n'
-        return table_content
+    def set_table_page(self):
+        new_page = self.format_table(page_length=100)
+        self.wiki.pages.set(self.dw_table_page, new_page)
 
 
 class CategoryTable(Table):
@@ -832,19 +827,9 @@ class CategoryTable(Table):
         self.header = self.construct_header(self.columndefs)
         self.linked_pages = False
 
-    def format_table(self, page_length=None):
-        table_content = '<datatables page-length="100">\n'
-        # initialize table content with the header
-        table_content += self.header
-        # construct the rows for all available records using the corresponding constructor function
-        for record in self.records:
-            # we only consider records in which the main column is not empty
-            if (self.main_column is not None) and (self.main_column not in record['fields']):
-                pass
-            else:
-                table_content += self.automatic_construct_row(self.columndefs, record)
-        table_content += '</datatables>\n'
-        return table_content
+    def set_table_page(self):
+        new_page = self.format_table(page_length=100)
+        self.wiki.pages.set(self.dw_table_page, new_page)
 
 
 class ExperimentTable(Table):
@@ -859,25 +844,6 @@ class ExperimentTable(Table):
         self.columndefs = self.tabledefs[table_name]
         self.header = self.construct_header(self.columndefs)
         self.linked_pages = False
-
-    def format_table(self, page_length=None):
-        """Construct a full table for Airtable table records.
-        Loop through all records and collect all formatted rows.
-
-        Returns:
-            (str) formatted table
-        """
-        # initialize table content with the header
-        table_content = self.header
-        # construct the rows for all available records using the corresponding constructor function
-        for record in self.records:
-            # we only consider records in which the main column is not empty
-            if (self.main_column is not None) and (self.main_column not in record['fields']):
-                pass
-            else:
-                # print(record['fields']['Tool name'])
-                table_content += self.automatic_construct_row(self.columndefs, record)
-        return table_content
 
 
 class ExperienceTable(Table):
@@ -895,7 +861,7 @@ class ExperienceTable(Table):
         self.header = "\n^ " + " ^ ".join(header) + " ^\n"
         self.linked_pages = False
 
-    def construct_row(self, record):
+    def automatic_construct_row(self, record):
         """
         Construct a row for fundraising experiences table based on data delivered by Airtable.
         :param record: a single record from the Airtable
@@ -944,25 +910,6 @@ class ThirdSectorTable(Table):
         self.header = self.construct_header(self.columndefs)
         self.linked_pages = False
 
-    def format_table(self, page_length=None):
-        """Construct a full table for Airtable table records.
-        Loop through all records and collect all formatted rows.
-
-        Returns:
-            (str) formatted table
-        """
-        # initialize table content with the header
-        table_content = self.header
-        # construct the rows for all available records using the corresponding constructor function
-        for record in self.records:
-            # we only consider records in which the main column is not empty
-            if (self.main_column is not None) and (self.main_column not in record['fields']):
-                pass
-            else:
-                # print(record['fields']['Tool name'])
-                table_content += self.automatic_construct_row(self.columndefs, record)
-        return table_content
-
 
 class EffectiveCharities(Table):
 
@@ -976,22 +923,3 @@ class EffectiveCharities(Table):
         self.columndefs = self.tabledefs[table_name]
         self.header = self.construct_header(self.columndefs)
         self.linked_pages = False
-
-    def format_table(self, page_length=None):
-        """Construct a full table for Airtable table records.
-        Loop through all records and collect all formatted rows.
-
-        Returns:
-            (str) formatted table
-        """
-        # initialize table content with the header
-        table_content = self.header
-        # construct the rows for all available records using the corresponding constructor function
-        for record in self.records:
-            # we only consider records in which the main column is not empty
-            if (self.main_column is not None) and (self.main_column not in record['fields']):
-                pass
-            else:
-                # print(record['fields']['Tool name'])
-                table_content += self.automatic_construct_row(self.columndefs, record)
-        return table_content

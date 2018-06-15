@@ -119,6 +119,57 @@ def fill_bibliography(record):
     time.sleep(1)
 
 
+def format_citation(record):
+    """Format publication citation for paper pages according to its type.
+
+    Args:
+        record: which record to use to format the reference
+
+    Returns:
+        str: formatted reference
+
+    """
+    # TODO: revise publication types
+
+    bib_type = record['fields']['Publication_type']
+
+    authors = record['fields'].get('Authors', '')
+    year = record['fields'].get('Year', '')
+    title = record['fields']['Title']
+    link = record['fields'].get('URL', '')
+
+    if link == '':
+        title = '//{}//'.format(title)
+    else:
+        title = '//[[{}|{}]]//'.format(link, title)
+
+    if bib_type == "article":
+        journal = record['fields'].get('Journal', '')
+        journal = journal.translate(bibtex_translator).lower().title()
+        volume = record['fields'].get('Vol', '')
+        number = record['fields'].get('Num', '')
+        pages = record['fields'].get('Pages', '')
+        # Author, N. (year). Title. Journal Name, Vol, Num, Pages.
+        reference = '{}, ({}). {}. {}, {}, {}, {}.'.format(authors, year, title, journal, volume, number, pages)
+
+    elif bib_type == "incollection":
+        book = record['fields'].get('Book_title', '')
+        pages = record['fields'].get('Pages', '')
+        # Author, N. (year). Chapter title, Pages. In: Book title.
+        reference = '{}, ({}). {}, {}. In: {}.'.format(authors, year, title, pages, book)
+
+    elif bib_type == "techreport":
+        institution = record['fields'].get('Institution', '')
+        # Author, N. (year). Title. Institution.
+        reference = '{}, ({}). {}. {}.'.format(authors, year, title, institution)
+
+    else:
+        # Author, N. (year). Title.
+        reference = '{}, ({}). {}.'.format(authors, year, title)
+
+    return reference
+
+
 """
 TODO: replace inproceedings with incollection
 replace any undefined categories with misc
