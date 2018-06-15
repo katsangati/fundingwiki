@@ -42,8 +42,8 @@ class WikiManager:
             self.used_table_name = None
             self.defined_tables = ['Tools', 'Charity_experiments', 'Giving_companies_ftse', 'Giving_companies_other',
                                    'Experiences', 'Third_sector', 'papers_mass_qualitative',
-                                   'paper_mass_quantitative', 'Categories']
-            self.maintained_tables = ['paper_mass']
+                                   'papers_mass_quantitative', 'Categories']
+            self.maintained_tables = ['papers_mass']
 
     def setup_table(self, table_name):
         """Initialize the connection to a given table in Airtable.
@@ -102,6 +102,11 @@ class WikiManager:
         elif table_name == 'Categories':
             table_base = 'appBzOSifwBqSuVfH'
             self.table = wikicontents.CategoryTable(self.wiki, table_base, table_name, self.user_key)
+            self.used_table_name = table_name
+
+        elif table_name == 'effective_charities_rated':
+            table_base = 'appBzOSifwBqSuVfH'
+            self.table = wikicontents.EffectiveCharities(self.wiki, table_base, table_name, self.user_key)
             self.used_table_name = table_name
 
         else:

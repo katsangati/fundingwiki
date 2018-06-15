@@ -2,13 +2,15 @@
 Define functions and classes for representing Airtable data, manipulating it and redirecting it to the Wiki
 in different formats (as tables or pages).
 """
+# noinspection PyPackageRequirements
 import airtable as at
 from functools import reduce
 import string
-import re
 import time
 import doi_resolver as dr
 from pybtex.database.input import bibtex
+import json
+from collections import OrderedDict
 
 
 # define a punctuation stripper for using later in pagename constructors
@@ -21,6 +23,37 @@ def insert_check(value, record):
         return ""
     else:
         return u'\u2713'
+
+
+def make_external_link(record, link_name, label_type, label_name):
+    link = record['fields'].get(link_name, '')
+
+    if label_type == 'field':
+        label = record['fields'].get(label_name, '')
+        if link != '':
+            return '[[{}|{}]]'.format(link, label)
+        else:
+            return label
+    else:
+        if link != '':
+            return '[[{}|{}]]'.format(link, label_name)
+        else:
+            return ''
+
+
+def make_internal_link(record, label_name, namespace, replacement_label_name):
+    # fetch the column whose value will be displayed in the link
+    label = record['fields'].get(label_name, '')
+    # the label will be used to create a DW page name and we have to remove all punctuation for this purpose
+    # (because a web link cannot have punctuation marks on DW)
+    page_name = label.translate(punctuation_translator)
+    # create a DW link to that page
+    if replacement_label_name is None:
+        link = '[[{}:{}|{}]]'.format(namespace, page_name, label)
+    else:
+        replacement_label = record['fields'][replacement_label_name]
+        link = '[[{}:{}|{}]]'.format(namespace, page_name, replacement_label)
+    return link
 
 
 def get_linked_items(airtable, column_name, record, linked_column_name):
@@ -48,53 +81,83 @@ def get_linked_items(airtable, column_name, record, linked_column_name):
     return items
 
 
-def format_citation(record):
-    """Format publication citation for paper pages according to its type.
+def get_paper_links(airtable, paper_ids, label, fulltext):
+    # This function is used when we need to link to paper pages from outside the paper table
+    # This can appear as [[paper_title | paper_title]] or [[paper_title | parencite]]
+    # and additionally can have an external link to full text
+    papers = []
+    # create links only if there are papers in the table for a given tool
+    if len(paper_ids) > 0:
+        for paper_id in paper_ids:
+            p_title = airtable.get(paper_id)['fields'].get('Title', '')
+            p_parencite = airtable.get(paper_id)['fields'].get('parencite', '')
+            # paper pages use paper Titles for their web address and main heading
+            # web addresses do not have punctuation
+            paper_page_name = p_title.translate(punctuation_translator)
+            # create a DW link to paper page
+            # the label that links to that page can be Title or parencite
+            if label == 'title':
+                paper_page = '[[papers:{}|{}]]'.format(paper_page_name, p_title)
+            elif label == 'parencite':
+                paper_page = '[[papers:{}|{}]]'.format(paper_page_name, p_parencite)
+            else:
+                paper_page = ''
 
-    Args:
-        record: which record to use to format the reference
+            if fulltext:
+                p_url = airtable.get(paper_id)['fields'].get('URL', '')
+                if p_url != '':
+                    # we also link to paper full text when available
+                    fulltext_link = '[[{}|Full text]]'.format(p_url)
+                    paper_page += ', ' + fulltext_link
+            papers.append(paper_page)
+    return papers
 
-    Returns:
-        str: formatted reference
 
-    """
-    bib_type = record['fields']['Publication_type']
+def get_tool_links(airtable, tool_ids):
+    # This function is used when we need to link to tool pages from outside the tool table
+    related_tools = []
+    # create links only if there are papers in the table for a given tool
+    if len(tool_ids) > 0:
+        for tool_id in tool_ids:
+            tool_name = airtable.get(tool_id)['fields'].get('Tool name', '')
+            tool_page_name = tool_name.translate(punctuation_translator)
+            tool_dw_table_page = '[[tools:{}|{}]]'.format(tool_page_name, tool_name)
+            related_tools.append(tool_dw_table_page)
+    return related_tools
 
-    authors = record['fields'].get('Authors', '')
-    year = record['fields'].get('Year', '')
-    title = record['fields']['Title']
-    link = record['fields'].get('URL', '')
 
-    if link == '':
-        title = '//{}//'.format(title)
+def make_bullets(bullet_items):
+    if len(bullet_items) > 0:
+        return '\n\n  * ' + '\n\n  * '.join(filter(None, bullet_items)) + '\n'
     else:
-        title = '//[[{}|{}]]//'.format(link, title)
+        return ''
 
-    if bib_type == "article":
-        journal = record['fields'].get('Journal', '')
-        journal = journal.translate(bibtex_translator).lower().title()
-        volume = record['fields'].get('Vol', '')
-        number = record['fields'].get('Num', '')
-        pages = record['fields'].get('Pages', '')
-        # Author, N. (year). Title. Journal Name, Vol, Num, Pages.
-        reference = '{}, ({}). {}. {}, {}, {}, {}.'.format(authors, year, title, journal, volume, number, pages)
 
-    elif bib_type == "incollection":
-        book = record['fields'].get('Book_title', '')
-        pages = record['fields'].get('Pages', '')
-        # Author, N. (year). Chapter title, Pages. In: Book title.
-        reference = '{}, ({}). {}, {}. In: {}.'.format(authors, year, title, pages, book)
-
-    elif bib_type == "techreport":
-        institution = record['fields'].get('Institution', '')
-        # Author, N. (year). Title. Institution.
-        reference = '{}, ({}). {}. {}.'.format(authors, year, title, institution)
-
+def format_value(coltype, value):
+    if value == "":
+        return ""
     else:
-        # Author, N. (year). Title.
-        reference = '{}, ({}). {}.'.format(authors, year, title)
-
-    return reference
+        if coltype in ["Single line text", "Long text", "Single select", "Date", "Phone number", "Email", "URL"]:
+            return value.strip().replace('\n', ' \\\\ ').replace('\r', '')
+        # TODO "Duration" is returned in seconds and should be converted
+        elif coltype in ["Number", "Currency", "Percent", "Duration", "Rating"]:
+            return str(value)
+        elif coltype in ["Multiple select", "Lookup"]:
+            return ", ".join(value)
+        elif coltype == "Checkbox":
+            return u'\u2713'
+        elif coltype == "Single collaborator":
+            return value["name"]
+        elif coltype == "Multiple collaborator":
+            return ", ".join(v["name"] for v in value)
+        elif coltype == "Attachment":
+            # we assume for now that all attachments are pictures
+            return "{{" + value[0]["url"] + "?400}}\n"
+        elif coltype in ["Link to another record", "External link", "Internal link", "Raw"]:
+            return value
+        else:
+            print("Column type '{}' unrecognized".format(coltype))
+            return ""
 
 
 class Table:
@@ -139,6 +202,8 @@ class Table:
         self.wiki = wiki
         self.airtable = at.Airtable(base_name, table_name, user_key)
         self.records = self.airtable.get_all()
+        with open('tabledef.json', 'r') as f:
+            self.tabledefs = json.load(f)
         self.dw_table_page = 'tables:test'
         self.included_in = None
         self.main_column = None
@@ -149,6 +214,25 @@ class Table:
             self.dw_page_template = None
             self.dw_page_name_column = None
             self.root_namespace = None
+
+    @staticmethod
+    def construct_header(columndefs):
+        header = []
+        for k, v in columndefs.items():
+            if v['table']['publish']:
+                header.append((v['table']['pos'], v['table']['header']))
+        header = [h[1] for h in sorted(header, key=lambda x: x[0])]
+        formatted_header = "\n^ " + " ^ ".join(header) + " ^\n"
+        return formatted_header
+
+    @staticmethod
+    def construct_placeholders(columndefs):
+        keys = []
+        for k, v in columndefs.items():
+            if v['page']['publish']:
+                keys.append((v['page']['pos'], v['page']['placeholder']))
+        keys = [h[1] for h in sorted(keys, key=lambda x: x[0])]
+        return keys
 
     def construct_row(self, record):
         """Construct a single table row for a given record.
@@ -166,15 +250,48 @@ class Table:
         row += " |\n"
         return row
 
-    def format_table(self):
+    def fetch_row(self, columndefs, record, target_format='table'):
+        row = []
+        for k, v in columndefs.items():
+            if v[target_format]['publish']:
+                if v['type'] == "External link":
+                    value = make_external_link(record, v[target_format]["URL"],
+                                               v[target_format]['label_type'],
+                                               v[target_format]['label'])
+                elif v['type'] == "Internal link":
+                    value = make_internal_link(record, v[target_format]['label'],
+                                               v[target_format]['namespace'],
+                                               v[target_format]['replacement_label'])
+                elif v['type'] == "Link to another record":
+                    value = get_linked_items(self.airtable, k, record,
+                                             v[target_format]['linked_column_name'])
+                else:
+                    value = record['fields'].get(k, "")
+
+                row.append((v[target_format]['pos'], format_value(v['type'], value)))
+
+        row = [v[1] for v in sorted(row, key=lambda x: x[0])]
+        return row
+
+    def automatic_construct_row(self, columndefs, record):
+        row = self.fetch_row(columndefs, record)
+        formatted_row = "| " + " | ".join(row) + " |\n"
+
+        return formatted_row
+
+    def format_table(self, page_length=None):
         """Construct a full table for Airtable table records.
         Loop through all records and collect all formatted rows.
 
         Returns:
             (str) formatted table
         """
+        if page_length is not None:
+            table_content = '<datatables page-length="{}">\n'.format(page_length)
+        else:
+            table_content = ''
         # initialize table content with the header
-        table_content = self.header
+        table_content += self.header
         # construct the rows for all available records using the corresponding constructor function
         for record in self.records:
             # we only consider records in which the main column is not empty
@@ -183,6 +300,8 @@ class Table:
             else:
                 # print(record['fields']['Tool name'])
                 table_content += self.construct_row(record)
+        if page_length is not None:
+            table_content += '</datatables>\n'
         return table_content
 
     def set_table_page(self):
@@ -255,7 +374,9 @@ class ToolTable(Table):
         self.included_in = 'tools:tools'  # define where the table will be actually displayed for the public
         self.main_column = 'Tool name'  # which column is the main one
         # define table header
-        self.header = "\n^ Tool name ^ Category ^ Description ^ Main findings ^ Key papers ^\n"
+        self.columndefs = self.tabledefs[table_name]
+        self.header = self.construct_header(self.columndefs)
+        self.placeholders = self.construct_placeholders(self.columndefs)
         # specify whether the table also feeds a set of Wiki pages
         self.linked_pages = True
         # define a Wiki page template; placeholders in uppercase to be replaced with actual data
@@ -289,63 +410,31 @@ class ToolTable(Table):
         """
         # only consider rows for which 'Wiki?' column is set to True
         if 'Wiki?' in record['fields']:
-            tool_name = record['fields']['Tool name']  # fetch the 'Tool name' column
-            # the tool name will be used for the page name and we have to remove all punctuation for this purpose
-            # (because a web link cannot have punctuation marks on DokuWiki)
-            tool_page_name = tool_name.translate(punctuation_translator)
-            # create a DW link to each tool page that will appear in the table
-            tool_dw_table_page = '[[tools:{}|{}]]'.format(tool_page_name, tool_name)
-
-            # fetch other columns
-            categories = record['fields'].get('Category', [""])
-            description = record['fields'].get('Description', "")
-            description = description.replace('\n', ' ').replace('\r', '')
-            findings = record['fields'].get('Findings summarized', "")
-            findings = findings.replace('\n', ' ').replace('\r', '')
+            row = self.fetch_row(self.columndefs, record)
+            cat_pos = self.columndefs['Category']['table']['pos'] - 1
+            category_ids = row[cat_pos]
 
             # create category pop-overs
-            if len(categories) > 0:
+            if len(category_ids) > 0:
                 category_names = [self.airtable.get(cat_id)['fields']['(Sub)Category or theme'] for
-                                  cat_id in categories]
+                                  cat_id in category_ids]
                 category_descriptions = [self.airtable.get(cat_id)['fields']['Description'].rstrip() for
-                                         cat_id in categories]
-                cat_column = ["<popover content=\"{}\" trigger='hover'>{}</popover>".format(description, name) for
+                                         cat_id in category_ids]
+                categories = ["<popover content=\"{}\" trigger='hover'>{}</popover>".format(description, name) for
                               description in category_descriptions for name in category_names]
             else:
-                cat_column = ''
-            # if 'Theories' not in record['fields']:
-            #     theory_names = ''
-            # else:
-            #     theory_names = [self.airtable.get(theory_id)['fields']['Theory'] for
-            #                     theory_id in record['fields']['Theories']]
+                categories = ''
 
+            row[cat_pos] = ', '.join(categories)
             # papers will also link to their pages, so we need to create those links
-            paper_ids = record['fields'].get('key_papers', '')
-            key_papers = []
-            # create links only if there are papers in the table for a given tool
-            if len(paper_ids) > 0:
-                for paper_id in record['fields']['key_papers']:
-                    # the table contains parencite text which links to a paper page
-                    # paper pages use paper Titles for their web address and main heading
-                    paper_name = self.airtable.get(paper_id)['fields'].get('parencite', '')
-                    title = self.airtable.get(paper_id)['fields'].get('Title', '')
-                    # if a paper has either no parencite or no title filled, skip it
-                    if paper_name == '' or title == '':
-                        pass
-                    else:
-                        # remove punctuation from paper title to be used as web address
-                        paper_page_name = title.translate(punctuation_translator)
-                        # create a DW link to paper page
-                        paper_dw_table_page = '[[papers:{}|{}]]'.format(paper_page_name, paper_name)
-                        key_papers.append(paper_dw_table_page)
-
-            # construct a row with row separators and all the column variables of interest
-            # these have to appear in the same order as defined in the header
-            row = "| " + tool_dw_table_page + " | " + ', '.join(cat_column) + " | " + \
-                  description.rstrip() + " |" + findings.rstrip() + " | " + '; '.join(key_papers) + " |\n"
+            paper_pos = self.columndefs['key_papers']['table']['pos'] - 1
+            key_papers = get_paper_links(self.airtable, row[paper_pos], 'parencite', False)
+            row[paper_pos] = ', '.join(key_papers)
+            formatted_row = "| " + " | ".join(row) + " |\n"
         else:
-            row = ''
-        return row
+            formatted_row = ''
+
+        return formatted_row
 
     def create_page(self, record):
         """
@@ -353,85 +442,25 @@ class ToolTable(Table):
         :param record: a single record from the Airtable
         :return: a formatted page
         """
-        # fetch some column data
-        tn = record['fields']['Tool name']
-        alt_tn = ', '.join(record['fields'].get('AKA', ''))
-        tool_var = record['fields'].get('Tool variation', '')
+        variables = self.fetch_row(self.columndefs, record, target_format="page")
 
-        # fetch column data from linked tables using a separate function (defined above)
-        categories = get_linked_items(self.airtable, 'Category', record, '(Sub)Category or theme')
-        sub_categories = get_linked_items(self.airtable, 'subcat', record, '(Sub)Category or theme')
-        theories = get_linked_items(self.airtable, 'Theories', record, 'Theory')
-        cases = get_linked_items(self.airtable, 'Relevant use cases', record, 'Name')
+        cat_pos = self.columndefs['Category']['page']['pos'] - 1
+        variables[cat_pos] = get_linked_items(self.airtable, 'Category', record, '(Sub)Category or theme')
 
-        evid = record['fields'].get('Types of evidence', [""])
-        evid_types = ', '.join(evid)
+        # insert links to relevant papers
+        paper_pos = self.columndefs['key_papers']['page']['pos'] - 1
+        papers = get_paper_links(self.airtable, variables[paper_pos], 'title', True)
+        variables[paper_pos] = make_bullets(papers)
 
-        evid_str = str(record['fields'].get('Evidence strength', ''))
-        description = record['fields'].get('Description', "")
-        # strip new line from the end of some column data - otherwise the formatting is inconsistent
-        summary = record['fields'].get('Findings summarized', "").rstrip()
-        discuss = record['fields'].get('Full discussion', "").rstrip()
+        secondary_pos = self.columndefs['secondary papers']['page']['pos'] - 1
+        secondary_papers = get_paper_links(self.airtable, variables[secondary_pos], '', True)
+        variables[secondary_pos] = make_bullets(secondary_papers)
 
-        relevance = record['fields'].get('Relevance to EA charities', [""])[0].rstrip()
-        preval = record['fields'].get('Prevalence', "")
-
-        # insert links to relevant papers - see construct row for explanation on this
-        paper_ids = record['fields'].get('key_papers', '')
-        if len(paper_ids) > 0:
-            papers = []
-            for paper_id in record['fields']['key_papers']:
-                p_title = self.airtable.get(paper_id)['fields'].get('Title', '')
-                paper_page_name = p_title.translate(punctuation_translator)
-                p_url = self.airtable.get(paper_id)['fields'].get('URL', '')
-                paper_page = ''
-                if p_title == '':
-                    pass
-                else:
-                    paper_page = '[[papers:{}|{}]]'.format(paper_page_name, p_title)
-                if p_url != '':
-                    # we also link to paper full text when available
-                    fulltext_link = '[[{}|Full text]]'.format(p_url)
-                    paper_page += ', ' + fulltext_link
-                papers.append(paper_page)
-
-            if len(papers) > 0:
-                # papers appear as a bulleted list
-                paper_items = '\n\n  * ' + '\n\n  * '.join(papers) + '\n'
-            else:
-                paper_items = ''
-
-        else:
-            paper_items = ''
-
-        secondary_paper_ids = record['fields'].get('secondary papers', '')
-        if len(secondary_paper_ids) > 0:
-            secondary_papers = []
-            for paper_id in record['fields']['secondary papers']:
-                p_title = self.airtable.get(paper_id)['fields'].get('Title', '')
-                p_url = self.airtable.get(paper_id)['fields'].get('URL', '')
-                if p_title == '' or p_url == '':
-                    pass
-                else:
-                    secondary_papers.append('[[' + p_url + ' | ' + p_title + ']]')
-            if len(secondary_papers) > 0:
-                secondary_paper_items = '\n\n  * ' + '\n\n  * '.join(secondary_papers) + '\n'
-            else:
-                secondary_paper_items = ''
-        else:
-            secondary_paper_items = ''
-
-        contrib = get_linked_items(self.airtable, 'Contributors', record, 'Name, Institution')
-
+        keys = self.placeholders
         # define replacements: a set of tuples in which the first item is an uppercase placeholder
         # and the second item is the variable that is to replace it
-        replacements = ('TOOLNAME', tn), ('DESCRIPTION', description), ('AKA', alt_tn), ('TOOLVAR', tool_var),\
-                       ('CATEGORY', categories), ('SUBCATEGORY', sub_categories), \
-                       ('THEORIES', theories), ('EVIDENCE', evid_types), ('STRENGTH', evid_str),\
-                       ('FINDINGS', summary), ('DISCUSSION', discuss),\
-                       ('RELEVANCE', relevance), ('CASES', cases), ('PREVALENCE', preval),\
-                       ('PAPERS', paper_items), ('PAPERS2', secondary_paper_items),\
-                       ('CONTRIBUTOR', contrib)
+        replacements = tuple(zip(keys, variables))
+
         # perform the replacements of placeholders with data for a given record and insert it into
         # the locations defined in the page template
         tool_page = reduce(lambda a, kv: a.replace(*kv, 1), replacements, self.dw_page_template)
@@ -457,9 +486,9 @@ class FtseTable(Table):
         self.records = self.airtable.get_all()
         self.included_in = 'iifwiki:employee_giving_schemes'
         self.main_column = 'Company'
-        self.header = "\n^ Company ^ Sector ^ Donation Matching ^ Payroll Giving ^ DM Details ^ " \
-                      "Total EA benefit ^ PG Details ^ Other Details ^ Endorsed ^ Outcomes ^ Reference ^\n"
-
+        self.columndefs = self.tabledefs['Giving_companies']
+        self.header = self.construct_header(self.columndefs)
+        self.placeholders = self.construct_placeholders(self.columndefs)
         self.linked_pages = True
         self.dw_page_template = '====COMPANY====\n\\\\\n' \
                                 '**Sector**: SECTOR\n\n' \
@@ -475,125 +504,51 @@ class FtseTable(Table):
                                 '===Other relevant information===\n\nOTHER_DETAILS\n\\\\\n\\\\\n' \
                                 '===Outcomes===\n\nOUTCOMES\n\\\\\n\\\\\n' \
                                 '===Sources, links to further information===\n\n' \
+                                '\n\n  * REF \n' \
                                 'LINKS\n\\\\\n'
         self.dw_page_name_column = 'Company'
         self.root_namespace = 'companies:'
         self.company_group = company_group  # (str) use this to differentiate between FTSE companies and other
         self.dw_table_page = 'tables:employee_giving_schemes_' + self.company_group
 
-    def construct_row(self, record):
-        """
-        Construct a row for the ftse companies table based on data delivered by Airtable.
-        :param record: a single record from the Airtable
-        :return: a formatted row for DW
-        """
-
-        # include only rows where the relevant group option appears
-        if record['fields']['Company group'] != self.company_group:
-            return ''
-
-        company_name = record['fields']['Company']
-        company_page_name = company_name.translate(punctuation_translator)
-        company_dw_table_page = '[[companies:{}|{}]]'.format(company_page_name, company_name)
-
-        sector = record['fields'].get('Sector', '')
-
-        if 'Donation Matching' not in record['fields']:
-            donation = ""
-        else:
-            donation = "X"
-
-        if 'Payroll Giving' not in record['fields']:
-            payroll = ""
-        else:
-            payroll = "X"
-
-        # possibly merge the 'details' rows if it improves table format
-        details_match = record['fields'].get('Details: Matching', '').replace('\n', ' \\\\ ')
-        details_payroll = record['fields'].get('Details: Payroll giving', '').replace('\n', ' \\\\ ')
-        details_other = record['fields'].get('Details: Other', '').replace('\n', ' \\\\ ')
-
-        endorsed = record['fields'].get('Endorsed charity(s)', [''])
-        outcomes = record['fields'].get('Outcomes', '')
-        benefit = record['fields'].get('Total max EA-benefit', '')
-
-        if 'Reference' in record['fields'] and 'Reference link' in record['fields']:
-            ref_text = re.sub('\[(.*)\]', '', record['fields']['Reference']).rstrip()
-            ref_url = record['fields']['Reference link']
-            ref = '[[{}|{}]]'.format(ref_url, ref_text)
-        else:
-            ref = ''
-
-        row = "| " + company_dw_table_page + " | " + sector + " | " + \
-              donation + " | " + payroll + " | " + details_match + " | " + \
-              str(benefit) + " | " + details_payroll + " | " + details_other + " | " + \
-              ', '.join(endorsed) + " | " + outcomes + " | " + ref + " |\n"
-
-        return row
+    def format_table(self, page_length=None):
+        table_content = '<datatables page-length="50">\n'
+        # initialize table content with the header
+        table_content += self.header
+        # construct the rows for all available records using the corresponding constructor function
+        for record in self.records:
+            # we only consider records in which the main column is not empty
+            if (self.main_column is not None) and (self.main_column not in record['fields'])\
+                    and record['fields']['Company group'] != self.company_group:
+                pass
+            else:
+                table_content += self.automatic_construct_row(self.columndefs, record)
+        table_content += '</datatables>\n'
+        return table_content
 
     def create_page(self, record):
         """
-        Construct a page for each paper.
+        Construct a page for each company.
         :param record: a single record from the Airtable
         :return: a formatted page
         """
+        variables = self.fetch_row(self.columndefs, record, target_format="page")
 
-        company_name = record['fields']['Company']
-        sector = record['fields'].get('Sector', '')
+        fee_pos = self.columndefs['Pays PG fees']['page']['pos']-1
+        variables[fee_pos] = variables[fee_pos] + " Note: This field needs more research."
 
-        if 'Donation Matching' not in record['fields']:
-            donation = ""
-        else:
-            donation = "yes"
-
-        if 'Payroll Giving' not in record['fields']:
-            payroll = ""
-        else:
-            payroll = "yes"
-
-        if 'Pays PG fees' not in record['fields']:
-            fees = ""
-        else:
-            fees = "yes. This field needs more research."
-
-        provider = record['fields'].get('PG: provider name', '')
-
-        # possibly merge the 'details' rows if it improves table format
-        details_match = record['fields'].get('Details: Matching', '')
-        details_payroll = record['fields'].get('Details: Payroll giving', '')
-        details_other = record['fields'].get('Details: Other', '')
-
-        endorsed = record['fields'].get('Endorsed charity(s)', [''])
-        outcomes = record['fields'].get('Outcomes', '')
-        benefit = record['fields'].get('Total max EA-benefit', '')
-
-        if 'Reference' in record['fields'] and 'Reference link' in record['fields']:
-            ref_text = re.sub('\[(.*)\]', '', record['fields']['Reference']).rstrip()
-            ref_url = record['fields']['Reference link']
-            ref = '[[{}|{}]]'.format(ref_url, ref_text)
-        else:
-            ref = ''
-
-        sources = [ref]
-
-        if 'Other links' in record['fields']:
-            sources.extend(record['fields']['Other links'].split(";"))
+        link_pos = self.columndefs['Other links']['page']['pos']-1
+        if len(variables[link_pos]) > 0:
+            sources = record['fields']['Other links'].split("; ")
             sources = [s.strip() for s in sources]
-
-        if len(sources) > 0:
-            source_items = '\n\n  * ' + '\n\n  * '.join(filter(None, sources)) + '\n'
+            variables[link_pos] = make_bullets(sources)
         else:
-            source_items = ''
+            variables[link_pos] = ''
+        keys = self.placeholders
+        replacements = tuple(zip(keys, variables))
 
-        replacements = ('COMPANY', company_name), ('SECTOR', sector), ('MATCH', donation), \
-                       ('PAYROLL', payroll), ('FEES', fees), \
-                       ('PROVIDER', provider), ('ENDORSED', ', '.join(endorsed)), \
-                       ('MATCH_DETAILS', details_match), ('BENEFIT', str(benefit)), \
-                       ('PAYROLL_DETAILS', details_payroll), \
-                       ('OTHER_DETAILS', details_other), \
-                       ('OUTCOMES', outcomes), ('LINKS', source_items)
-        paper_page = reduce(lambda a, kv: a.replace(*kv, 1), replacements, self.dw_page_template)
-        return paper_page
+        ftse_page = reduce(lambda a, kv: a.replace(*kv, 1), replacements, self.dw_page_template)
+        return ftse_page
 
     def set_pages(self):
         relevant_records = []
@@ -616,10 +571,13 @@ class PapersTable(Table):
         self.dw_table_page = 'tables:papers'
         self.included_in = 'papers:papers'
         self.main_column = 'parencite'
-        self.header = "\n^ Reference ^ Title ^ Type of evidence ^ Discussion ^ Tools ^ Link ^\n"
+        self.columndefs = self.tabledefs['papers_mass_qualitative']
+        self.header = self.construct_header(self.columndefs)
+        self.placeholders = self.construct_placeholders(self.columndefs)
         self.linked_pages = True
         self.dw_page_template = '====PAPERTITLE====\n\n' \
                                 'REFERENCE\n\n' \
+                                'ILLUSTRATION' \
                                 '**Keywords**: KEYWORDS\n\n' \
                                 '**Discipline**: DISCIPLINE\n\n' \
                                 '**Type of evidence**: EVIDENCE\n\n' \
@@ -633,12 +591,8 @@ class PapersTable(Table):
                                 '===Evaluation===\n\nEVALUATION\n\\\\\n' \
                                 'META\n\\\\\n' \
                                 'This paper has been added by CREATORS'  # and evaluated by EVALUATORS'
-        # TODO incorporate illustration when available Shang2009
         self.dw_page_name_column = 'Title'
         self.root_namespace = 'papers:'
-        # TODO bottom tabular
-        """ At the bottom of the page there should be some expandable table with a header
-        'Meta-analysis and evaluation content' """
 
     def construct_row(self, record):
         """
@@ -646,38 +600,18 @@ class PapersTable(Table):
         :param record: a single record from the Airtable
         :return: a formatted row for DW
         """
-        paper_name = record['fields']['parencite']
-        title = record['fields'].get('Title', '')
+        row = self.fetch_row(self.columndefs, record)
+        # related tools will also link to their pages, so we need to create those links
+        tool_pos = self.columndefs['tools']['table']['pos'] - 1
+        related_tools = get_tool_links(self.airtable, row[tool_pos])
+        row[tool_pos] = ', '.join(related_tools)
+        formatted_row = "| " + " | ".join(row) + " |\n"
 
-        paper_page_name = title.translate(punctuation_translator)
-        paper_dw_table_page = '[[papers:{}|{}]]'.format(paper_page_name, paper_name)
+        return formatted_row
 
-        discussion = record['fields'].get('Discussion/findings', '')
-        discussion = discussion.replace('\n', ' ').replace('\r', '')
-
-        tool_ids = record['fields'].get('tools', '')
-        related_tools = []
-        if len(tool_ids) > 0:
-            for tool_id in record['fields']['tools']:
-                tool_name = self.airtable.get(tool_id)['fields'].get('Tool name', '')
-                if tool_name == '':
-                    pass
-                else:
-                    tool_page_name = tool_name.translate(punctuation_translator)
-                    tool_dw_table_page = '[[tools:{}|{}]]'.format(tool_page_name, tool_name)
-                    related_tools.append(tool_dw_table_page)
-
-        evidence = record['fields'].get('Type of evidence', [''])
-
-        if 'URL' not in record['fields']:
-            link = ''
-        else:
-            link = '[[{}|{}]]'.format(record['fields']['URL'], 'Full text')
-
-        row = "| " + paper_dw_table_page + " | " + title + " | " + \
-              evidence[0] + " | " + discussion + " | " + ', '.join(related_tools) + " | " + link + " |\n"
-
-        return row
+    def set_table_page(self):
+        new_page = self.format_table(page_length=100)
+        self.wiki.pages.set(self.dw_table_page, new_page)
 
     def create_page(self, record):
         """
@@ -685,46 +619,19 @@ class PapersTable(Table):
         :param record: a single record from the Airtable
         :return: a formatted page
         """
+        variables = self.fetch_row(self.columndefs, record, target_format="page")
 
-        title = record['fields']['Title']
-        reference = format_citation(record)
+        tool_pos = self.columndefs['tools']['page']['pos'] - 1
+        related_tools = get_tool_links(self.airtable, variables[tool_pos])
+        variables[tool_pos] = ', '.join(related_tools)
 
-        evidence = record['fields'].get('Type of evidence', [''])
-        keywords = ', '.join(record['fields'].get('keywords', ['']))
-        charities = ', '.join(record['fields'].get('Charity-target', ['']))
-        donors = ', '.join(record['fields'].get('Donor population', ['']))
-        discipline = ', '.join(record['fields'].get('Discipline/field', ['']))
+        meta_pos = self.columndefs['meta']['page']['pos'] - 1
+        variables[meta_pos] = self.make_meta(record)
 
-        tool_ids = record['fields'].get('tools', '')
-        related_tools = []
-        if len(tool_ids) > 0:
-            for tool_id in record['fields']['tools']:
-                tool_name = self.airtable.get(tool_id)['fields'].get('Tool name', '')
-                if tool_name == '':
-                    pass
-                else:
-                    tool_page_name = tool_name.translate(punctuation_translator)
-                    tool_dw_table_page = '[[tools:{}|{}]]'.format(tool_page_name, tool_name)
-                    related_tools.append(tool_dw_table_page)
-
-        summary = record['fields'].get('Wiki-notes', '')
-        discussion = record['fields'].get('Discussion/findings', '')
-        evaluation = record['fields'].get('Evaluation', '')
-
-        creators = get_linked_items(self.airtable, 'Added by', record, 'Name, Institution')
-        # # this is currently not a link to persons
-        # evaluators = get_linked_items(self.airtable, 'Discussion/evaluation by', record, 'Name, Institution')
-        theories = get_linked_items(self.airtable, 'Theories', record, 'Theory')
-        critiques = get_linked_items(self.airtable, 'critiques', record, 'Name')
-
-        replacements = ('PAPERTITLE', title), ('REFERENCE', reference), ('KEYWORDS', keywords), \
-                       ('DISCIPLINE', discipline), ('EVIDENCE', evidence[0]), \
-                       ('TOOLS', ', '.join(related_tools)), ('THEORIES', theories), \
-                       ('CRITIQUES', critiques), ('TARGETS', charities), ('DONORS', donors), \
-                       ('SUMMARY', summary), ('DISCUSSION', discussion), \
-                       ('EVALUATION', evaluation), ('META', self.make_meta(record)), \
-                       ('CREATORS', creators)  # , ('EVALUATORS', evaluators)
+        keys = self.placeholders
+        replacements = tuple(zip(keys, variables))
         paper_page = reduce(lambda a, kv: a.replace(*kv, 1), replacements, self.dw_page_template)
+
         return paper_page
 
     def update_record(self, record):
@@ -765,36 +672,57 @@ class PapersTable(Table):
 
         authors_list = [p.__str__() for p in bib_data.entries[k].persons['author']]
         authors = "; ".join(authors_list)
-        self.airtable.update(record['id'], {'Authors': authors})
-
         year = bib_data.entries[k].fields.get('year', '')
-        self.airtable.update(record['id'], {'Year': year})
-
         title = bib_data.entries[k].fields['title']
+
+        link = record['fields'].get('URL', '')
+
+        if link == '':
+            title = '//{}//'.format(title)
+        else:
+            title = '//[[{}|{}]]//'.format(link, title)
+
+        self.airtable.update(record['id'], {'Authors': authors})
+        self.airtable.update(record['id'], {'Year': year})
         self.airtable.update(record['id'], {'Title': title})
 
         if bib_type == "article":
+            # Author, N. (year). Title. Journal Name, Vol, Num, Pages.
             journal = bib_data.entries[k].fields['journal']
-            self.airtable.update(record['id'], {'Journal': journal})
+            journal = journal.translate(bibtex_translator).lower().title()
             volume = bib_data.entries[k].fields.get('volume', '')
-            self.airtable.update(record['id'], {'Vol': volume})
             number = bib_data.entries[k].fields.get('number', '')
-            self.airtable.update(record['id'], {'Num': number})
             pages = bib_data.entries[k].fields.get('pages', '')
+            reference = '{}, ({}). {}. {}, {}, {}, {}.'.format(authors, year, title, journal, volume, number, pages)
+
+            self.airtable.update(record['id'], {'Journal': journal})
+            self.airtable.update(record['id'], {'Vol': volume})
+            self.airtable.update(record['id'], {'Num': number})
             self.airtable.update(record['id'], {'Pages': pages})
 
         elif bib_type == "incollection":
+            # Author, N. (year). Chapter title, Pages. In: Book title.
             book = bib_data.entries[k].fields['booktitle']
             book = book.lower().title()
-            self.airtable.update(record['id'], {'Book_title': book})
             pages = bib_data.entries[k].fields.get('pages', '')
+            reference = '{}, ({}). {}, {}. In: {}.'.format(authors, year, title, pages, book)
+
+            self.airtable.update(record['id'], {'Book_title': book})
             self.airtable.update(record['id'], {'Pages': pages})
 
         elif bib_type == "techreport":
+            # Author, N. (year). Title. Institution.
             institution = bib_data.entries[k].fields.get('institution', '')
+            reference = '{}, ({}). {}. {}.'.format(authors, year, title, institution)
+
             self.airtable.update(record['id'], {'Institution': institution})
 
-        # nothing to add for book and misc
+        else:
+            # nothing to add for book and misc
+            # Author, N. (year). Title.
+            reference = '{}, ({}). {}.'.format(authors, year, title)
+
+        self.airtable.update(record['id'], {'Reference': reference})
 
         # create parencite
         first_author = bib_data.entries[k].persons['author'][0].last_names[0]
@@ -811,42 +739,9 @@ class PapersTable(Table):
 
         self.airtable.update(record['id'], {'parencite': parencite})
 
-    @staticmethod
-    def make_meta(record):
-        numcit = str(record['fields'].get('num_citations', ''))
-        data = ', '.join(record['fields'].get('Link to raw data', ''))  # link?
-        peerrev = insert_check('Peer-reviewed pub?', record)
-        rating = str(record['fields'].get('Journal rating (1-5)', ''))
-        replic_link = ', '.join(record['fields'].get('Exact replications link?', ''))  # link?
-        replic_res = insert_check('Replication success?', record)
-        prereg = insert_check('Preregistered?', record)
-        verified = insert_check('Verified collection?', record)
-        aware = insert_check('Participants aware?', record)
-        demog = ', '.join(record['fields'].get('Sample demog?', ''))
-        design = insert_check('Between-subject design?', record)
-        compar = insert_check('Simple_comparison?', record)
-        sampsize = str(record['fields'].get('Sample size', ''))
-        share = str(record['fields'].get('Share treated', ''))
-        components = ', '.join(record['fields'].get('Key components of ask', ''))
-        treat = record['fields'].get('Main treatment', '')
-        mean_don = str(record['fields'].get('Mean don (usd-2018); control group', ''))
-        sd_don = str(record['fields'].get('SD: don', ''))
-        endow_descr = record['fields'].get('Endowment_description', '')
-        endow_usd = record['fields'].get('Endowment (usd-2018)', '')
-        curr = record['fields'].get('Currency', '')
-        year = str(record['fields'].get('year_run', ''))
-        convert = str(record['fields'].get('conversion rate', ''))
-        eff_orig = str(record['fields'].get('Effect-size-original-units', ''))
-        eff_usd = str(record['fields'].get('Effect size (USD-2018)', ''))
-        se_eff = str(record['fields'].get('SE of effect size', ''))
-        se_calc = str(record['fields'].get('SE calc method', ''))
-        eff_share = str(record['fields'].get('Effect size (Share of mean donation)', ''))
-        mean_inc = str(record['fields'].get('Mean incidence', ''))
-        eff_inc = str(record['fields'].get('Effect size (incidence)', ''))
-        pval = str(record['fields'].get('Headline p-value', ''))
-        pval_descr = record['fields'].get('Describe headline p-val', '')
-
-        meta_template = '<button collapse="meta">Meta-analysis data</button><collapse id="meta" collapsed="true"><well>'\
+    def make_meta(self, record):
+        meta_template = '<button collapse="meta">Meta-analysis data</button><collapse id="meta" ' \
+                        'collapsed="true"><well>'\
                         '<WRAP third column>' \
                         '**Study year**: R01\n\n' \
                         '**Data link**: R02\n\n' \
@@ -887,13 +782,12 @@ class PapersTable(Table):
                         '</WRAP>' \
                         '</well></collapse>'
 
-        vars = [year, data, peerrev, rating, numcit, replic_link, replic_res,
-                prereg, verified, aware, demog, design, compar, sampsize, share, components, treat,
-                mean_don, sd_don, endow_usd, endow_descr, curr, convert, eff_orig, eff_usd, se_eff,
-                se_calc, eff_share, mean_inc, eff_inc, pval, pval_descr]
+        variables = self.fetch_row(self.tabledefs['papers_mass_quantitative'], record)
+        # we don't need the reference column here
+        variables = variables[1:]
         keys = ['R0' + str(i) for i in range(1, 10)] + ['R' + str(i) for i in range(10, 33)]
 
-        replacements = tuple(zip(keys, vars))
+        replacements = tuple(zip(keys, variables))
         meta_well = reduce(lambda a, kv: a.replace(*kv, 1), replacements, meta_template)
         return meta_well
 
@@ -907,70 +801,23 @@ class MetaAnalysisTable(Table):
         self.dw_table_page = 'tables:meta'
         self.included_in = 'papers:meta_analysis'
         self.main_column = 'parencite'
-        self.header = "\n^ Reference ^ Study year ^ Data link ^ Peer reviewed ^ Journal rating ^ " \
-                      "Citations ^ Replications ^ Replication success ^ Pre-registered ^" \
-                      "Verified ^ Participants aware ^ Demographics ^ Design ^" \
-                      "Simple comparison ^ Sample size ^ Share treated ^ Key components ^" \
-                      "Main treatment ^ Mean donation ^ SD donation ^ Endowment amount ^" \
-                      "Endowment description ^ Currency ^ Conversion rate ^" \
-                      "Effect size original ^ Effect size USD ^ SE effect size ^" \
-                      "SE calculation ^ Effect size share ^ Mean incidence ^" \
-                      "Effect size incidence ^ Headline p-val ^ P-val description" \
-                      "^\n"
+        self.columndefs = self.tabledefs['papers_mass_quantitative']
+        self.header = self.construct_header(self.columndefs)
         self.linked_pages = False
 
-    def construct_row(self, record):
-        """
-        Construct a row for papers table based on data delivered by Airtable.
-        :param record: a single record from the Airtable
-        :return: a formatted row for DW
-        """
-        paper_name = record['fields']['parencite']
-        title = record['fields'].get('Title', '')
-        paper_page_name = title.translate(punctuation_translator)
-        # create a DW link to paper page
-        paper_dw_table_page = '[[papers:{}|{}]]'.format(paper_page_name, paper_name)
-
-        numcit = str(record['fields'].get('num_citations', ''))
-        data = ', '.join(record['fields'].get('Link to raw data', ''))  # link?
-        peerrev = insert_check('Peer-reviewed pub?', record)
-        rating = str(record['fields'].get('Journal rating (1-5)', ''))
-        replic_link = ', '.join(record['fields'].get('Exact replications link?', ''))  # link?
-        replic_res = insert_check('Replication success?', record)
-        prereg = insert_check('Preregistered?', record)
-        verified = insert_check('Verified collection?', record)
-        aware = insert_check('Participants aware?', record)
-        demog = ', '.join(record['fields'].get('Sample demog?', ''))
-        design = insert_check('Between-subject design?', record)
-        compar = insert_check('Simple_comparison?', record)
-        sampsize = str(record['fields'].get('Sample size', ''))
-        share = str(record['fields'].get('Share treated', ''))
-        components = ', '.join(record['fields'].get('Key components of ask', ''))
-        treat = record['fields'].get('Main treatment', '')
-        mean_don = str(record['fields'].get('Mean don (usd-2018); control group', ''))
-        sd_don = str(record['fields'].get('SD: don', ''))
-        endow_descr = record['fields'].get('Endowment_description', '')
-        endow_usd = record['fields'].get('Endowment (usd-2018)', '')
-        curr = record['fields'].get('Currency', '')
-        year = str(record['fields'].get('year_run', ''))
-        convert = str(record['fields'].get('conversion rate', ''))
-        eff_orig = str(record['fields'].get('Effect-size-original-units', ''))
-        eff_usd = str(record['fields'].get('Effect size (USD-2018)', ''))
-        se_eff = str(record['fields'].get('SE of effect size', ''))
-        se_calc = str(record['fields'].get('SE calc method', ''))
-        eff_share = str(record['fields'].get('Effect size (Share of mean donation)', ''))
-        mean_inc = str(record['fields'].get('Mean incidence', ''))
-        eff_inc = str(record['fields'].get('Effect size (incidence)', ''))
-        pval = str(record['fields'].get('Headline p-value', ''))
-        pval_descr = record['fields'].get('Describe headline p-val', '')
-
-        row = "| " + " | ".join([paper_dw_table_page, year, data, peerrev, rating, numcit, replic_link, replic_res,
-                                 prereg, verified, aware, demog, design, compar, sampsize, share,
-                                 components, treat, mean_don, sd_don, endow_usd, endow_descr,
-                                 curr, convert, eff_orig, eff_usd, se_eff, se_calc, eff_share,
-                                 mean_inc, eff_inc, pval, pval_descr]) + " |\n"
-
-        return row
+    def format_table(self, page_length=None):
+        table_content = '<datatables page-length="100">\n'
+        # initialize table content with the header
+        table_content += self.header
+        # construct the rows for all available records using the corresponding constructor function
+        for record in self.records:
+            # we only consider records in which the main column is not empty
+            if (self.main_column is not None) and (self.main_column not in record['fields']):
+                pass
+            else:
+                table_content += self.automatic_construct_row(self.columndefs, record)
+        table_content += '</datatables>\n'
+        return table_content
 
 
 class CategoryTable(Table):
@@ -981,23 +828,12 @@ class CategoryTable(Table):
         self.dw_table_page = 'tables:tool_categories'
         self.included_in = 'tools:tool_categories'
         self.main_column = '(Sub)Category or theme'
-        self.header = "\n^ Category ^ Description ^\n"
+        self.columndefs = self.tabledefs[table_name]
+        self.header = self.construct_header(self.columndefs)
         self.linked_pages = False
 
-    def construct_row(self, record):
-        """
-        Construct a row for the tools table based on data delivered by Airtable.
-        :param record: a single record from the Airtable
-        :return: a formatted row for DW
-        """
-        cat_name = record['fields']['(Sub)Category or theme']
-        description = record['fields']['Description'].rstrip()
-
-        row = "| " + cat_name + " | " + description + " |\n"
-        return row
-
-    def format_table(self):
-        table_content = '<datatables dom="t" page-length="100">\n'
+    def format_table(self, page_length=None):
+        table_content = '<datatables page-length="100">\n'
         # initialize table content with the header
         table_content += self.header
         # construct the rows for all available records using the corresponding constructor function
@@ -1006,7 +842,7 @@ class CategoryTable(Table):
             if (self.main_column is not None) and (self.main_column not in record['fields']):
                 pass
             else:
-                table_content += self.construct_row(record)
+                table_content += self.automatic_construct_row(self.columndefs, record)
         table_content += '</datatables>\n'
         return table_content
 
@@ -1020,31 +856,28 @@ class ExperimentTable(Table):
         self.dw_table_page = 'tables:data_experiments'
         self.included_in = 'iifwiki:dataexperiments'
         self.main_column = 'Experiment'
-        self.header = "\n^ Experiment ^ N ^ Endowment ^ Share donating ^ Share donated ^ Mean donation ^\
-                            SD ^ SD/Mean ^ Effect Size ^ References ^\n"
+        self.columndefs = self.tabledefs[table_name]
+        self.header = self.construct_header(self.columndefs)
         self.linked_pages = False
 
-    def construct_row(self, record):
-        """
-        Construct a row for the charity experiments table based on data delivered by Airtable.
-        :param record: a single record from the Airtable
-        :return: a formatted row for DW
-        """
-        experiment_name = record['fields']['Experiment']
-        n = record['fields'].get('N ', '')
-        endowment = record['fields'].get('Endowment', '')
-        share_donating = record['fields'].get('Share donating', '')
-        share_donated = record['fields'].get('Share donated', '')
-        exp_mean = record['fields'].get('Mean donation', '')
-        exp_sd = record['fields'].get('SD', '')
-        sd_mean = record['fields'].get('SD/Mean', '')
-        effect = record['fields'].get('Effect Size %', '')
-        ref = record['fields'].get('References', '')
+    def format_table(self, page_length=None):
+        """Construct a full table for Airtable table records.
+        Loop through all records and collect all formatted rows.
 
-        row = "| " + experiment_name + " | " + n + " | " + endowment + " | " +\
-              share_donating + " | " + share_donated + " | " + exp_mean + " | " +\
-              exp_sd + " | " + sd_mean + " | " + effect + " | " + ref + " |\n"
-        return row
+        Returns:
+            (str) formatted table
+        """
+        # initialize table content with the header
+        table_content = self.header
+        # construct the rows for all available records using the corresponding constructor function
+        for record in self.records:
+            # we only consider records in which the main column is not empty
+            if (self.main_column is not None) and (self.main_column not in record['fields']):
+                pass
+            else:
+                # print(record['fields']['Tool name'])
+                table_content += self.automatic_construct_row(self.columndefs, record)
+        return table_content
 
 
 class ExperienceTable(Table):
@@ -1056,8 +889,10 @@ class ExperienceTable(Table):
         self.dw_table_page = 'tables:experiences_of_workplace_activists'
         self.included_in = 'iifwiki:experiences_of_workplace_activists'
         self.main_column = 'Name'
-        self.header = "\n^ Name ^ Organisation ^ Employees ^ " \
-                      "Charity ^ Description ^ Participants ^ Raised ^ Results ^\n"
+        self.columndefs = self.tabledefs[table_name]
+        default_header = self.construct_header(self.columndefs)
+        header = list(OrderedDict.fromkeys(default_header[3:-3].split(" ^ ")))
+        self.header = "\n^ " + " ^ ".join(header) + " ^\n"
         self.linked_pages = False
 
     def construct_row(self, record):
@@ -1066,25 +901,34 @@ class ExperienceTable(Table):
         :param record: a single record from the Airtable
         :return: a formatted row for DW
         """
-        person_name_role = record['fields']['Name'] + ", " + record['fields'].get('Role', '')
-        organisation = record['fields'].get('Organisation', '') + ", " + record['fields'].get('Organisation type', '')
-        num_employees = record['fields'].get('Number of employees', '')
-        # experience_type = record['fields'].get('Experience type', '')
-        charity = record['fields'].get('Charity', '')
-        description = record['fields'].get('Event description', '')
-        num_participants = record['fields'].get('Number of participants', '')
-        raised = record['fields'].get('Amount raised', '')
+        row = self.fetch_row(self.columndefs, record)
 
-        results = "**Choice motivation**: " + record['fields'].get('Choice motivation', '') + "\\\\ " +\
-                  "**Communication channel**: " + record['fields'].get('Communication channel', '') + "\\\\ " +\
-                  "**Main arguments**: " + record['fields'].get('Main arguments', '') + "\\\\ " +\
-                  "**Problems faced**: " + record['fields'].get('Problems faced', '') + "\\\\ " +\
-                  "**Evaluation**: " + record['fields'].get('Evaluation', '') + "\\\\ " +\
-                  "**Additional information**: " + record['fields'].get('Comments', '')
+        concise_row = list()
+        concise_row.append(row[self.columndefs['Name']['table']['pos']-1] + ", " +
+                           row[self.columndefs['Role']['table']['pos']-1])
+        concise_row.append(row[self.columndefs['Organisation']['table']['pos']-1] + ", " +
+                           row[self.columndefs['Organisation type']['table']['pos']-1])
+        emp_pos = self.columndefs['Number of employees']['table']['pos']-1
+        motiv_pos = self.columndefs['Choice motivation']['table']['pos']-1
+        concise_row.extend(row[emp_pos:motiv_pos])
 
-        row = "| " + " | ".join([person_name_role, organisation, str(num_employees), charity,
-                                description, str(num_participants), raised, results]) + " |\n"
-        return row
+        comm_pos = self.columndefs['Communication channel']['table']['pos']-1
+        arg_pos = self.columndefs['Main arguments']['table']['pos'] - 1
+        prob_pos = self.columndefs['Problems faced']['table']['pos'] - 1
+        eval_pos = self.columndefs['Evaluation']['table']['pos'] - 1
+        inf_pos = self.columndefs['Comments']['table']['pos'] - 1
+
+        results = "**Choice motivation**: " + row[motiv_pos] + "\\\\ " +\
+                  "**Communication channel**: " + row[comm_pos] + "\\\\ " +\
+                  "**Main arguments**: " + row[arg_pos] + "\\\\ " +\
+                  "**Problems faced**: " + row[prob_pos] + "\\\\ " +\
+                  "**Evaluation**: " + row[eval_pos] + "\\\\ " +\
+                  "**Additional information**: " + row[inf_pos]
+
+        concise_row.append(results)
+
+        formatted_row = "| " + " | ".join(concise_row) + " |\n"
+        return formatted_row
 
 
 class ThirdSectorTable(Table):
@@ -1096,32 +940,28 @@ class ThirdSectorTable(Table):
         self.dw_table_page = 'tables:third_sector_infrastructure_details'
         self.included_in = 'iifwiki:third_sector_infrastructure_details'
         self.main_column = 'Name'
-        self.header = "\n^ Name ^ Whom does it help? ^ Role ^ Example activity ^ " \
-                      "Size ^ Established ^ CEO/Chairman ^\n"
+        self.columndefs = self.tabledefs[table_name]
+        self.header = self.construct_header(self.columndefs)
         self.linked_pages = False
 
-    def construct_row(self, record):
-        """
-        Construct a row for third-sector organisations table based on data delivered by Airtable.
-        :param record: a single record from the Airtable
-        :return: a formatted row for DW
-        """
-        name = record['fields']['Name']
-        link = record['fields'].get('Link', '')
-        if link != '':
-            name_link = '[[{}|{}]]'.format(link, name)
-        else:
-            name_link = name
+    def format_table(self, page_length=None):
+        """Construct a full table for Airtable table records.
+        Loop through all records and collect all formatted rows.
 
-        target = record['fields'].get('Target', '')
-        role = record['fields'].get('Role', '')
-        activity = record['fields'].get('Example activity', '')
-        size = record['fields'].get('Size', '')
-        established = record['fields'].get('Established', '')
-        ceo = record['fields'].get('CEO/Chairman', '')
-
-        row = "| " + " | ".join([name_link, target, role, activity, size, established, ceo]) + " |\n"
-        return row
+        Returns:
+            (str) formatted table
+        """
+        # initialize table content with the header
+        table_content = self.header
+        # construct the rows for all available records using the corresponding constructor function
+        for record in self.records:
+            # we only consider records in which the main column is not empty
+            if (self.main_column is not None) and (self.main_column not in record['fields']):
+                pass
+            else:
+                # print(record['fields']['Tool name'])
+                table_content += self.automatic_construct_row(self.columndefs, record)
+        return table_content
 
 
 class EffectiveCharities(Table):
@@ -1131,31 +971,27 @@ class EffectiveCharities(Table):
         self.airtable = at.Airtable(base_name, table_name, user_key)
         self.records = self.airtable.get_all()
         self.dw_table_page = 'tables:effective_charities'
-        self.included_in = 'iifwiki:effective_charities'
-        self.main_column = 'Name'
-        self.header = "\n^ Charity Name ^ Registration Number ^ Just Giving ID ^ Cause area ^ " \
-                      "Rater ^ EAF ^ GiveWell Top'17 ^ GiveWell Standout'17 ^ Life You Can Save ^ ACE ^\n"
+        self.included_in = 'iifwiki:earatings'
+        self.main_column = 'charity_name'
+        self.columndefs = self.tabledefs[table_name]
+        self.header = self.construct_header(self.columndefs)
         self.linked_pages = False
 
-    def construct_row(self, record):
-        """
-        Construct a row for third-sector organisations table based on data delivered by Airtable.
-        :param record: a single record from the Airtable
-        :return: a formatted row for DW
-        """
-        name = record['fields']['Name']
-        link = record['fields'].get('Link', '')
-        if link != '':
-            name_link = '[[{}|{}]]'.format(link, name)
-        else:
-            name_link = name
+    def format_table(self, page_length=None):
+        """Construct a full table for Airtable table records.
+        Loop through all records and collect all formatted rows.
 
-        target = record['fields'].get('Target', '')
-        role = record['fields'].get('Role', '')
-        activity = record['fields'].get('Example activity', '')
-        size = record['fields'].get('Size', '')
-        established = record['fields'].get('Established', '')
-        ceo = record['fields'].get('CEO/Chairman', '')
-
-        row = "| " + " | ".join([name_link, target, role, activity, size, established, ceo]) + " |\n"
-        return row
+        Returns:
+            (str) formatted table
+        """
+        # initialize table content with the header
+        table_content = self.header
+        # construct the rows for all available records using the corresponding constructor function
+        for record in self.records:
+            # we only consider records in which the main column is not empty
+            if (self.main_column is not None) and (self.main_column not in record['fields']):
+                pass
+            else:
+                # print(record['fields']['Tool name'])
+                table_content += self.automatic_construct_row(self.columndefs, record)
+        return table_content
