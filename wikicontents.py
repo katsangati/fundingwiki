@@ -134,6 +134,23 @@ def make_bullets(bullet_items):
 
 
 def format_value(coltype, value):
+    """
+    Depending on column type, format cell value:
+    - if value is a type of string, strip and return
+    - if value is a number, convert to string
+    - if value is a list, join it into a string
+    - if value is a list of linked record ids, fetch required information from a linked table (using the ids)
+    - if value is a checkbox, return check mark
+    - other types are returned as is
+
+    Args:
+        coltype:
+        value:
+
+    Returns:
+
+    """
+
     if value == "":
         return ""
     else:
@@ -385,27 +402,12 @@ class ToolTable(Table):
         # specify whether the table also feeds a set of Wiki pages
         self.linked_pages = True
         # define a Wiki page template; placeholders in uppercase to be replaced with actual data
-        self.dw_page_template = '===== TOOLNAME =====\n\n' \
-                                '//DESCRIPTION//\n\\\\\n\\\\\n' \
-                                '**Alternative tool name:** AKA\n\n' \
-                                '**Tool variation**: TOOLVAR\n\n' \
-                                '**Category**: CATEGORY \n\n' \
-                                '**Sub-category**: SUBCATEGORY\n\n' \
-                                '**Relevant theories**: THEORIES\n\n' \
-                                '**Type of evidence**: EVIDENCE\n\n' \
-                                '**Evidence strength** (ad hoc assessment): STRENGTH\n\\\\\n\\\\\n' \
-                                '==== Main findings ====\n\nFINDINGS\n\\\\\n\\\\\n' \
-                                '==== Discussion ====\n\nDISCUSSION\n\\\\\n\\\\\n' \
-                                '==== Practical relevance ====\n\nRELEVANCE\n\\\\\n\\\\\n' \
-                                '=== Use cases ===\n\nCASES\n\\\\\n\\\\\n' \
-                                '**Prevalence:**\n\nPREVALENCE\n\\\\\n\\\\\n' \
-                                '==== Key papers ====PAPERS\n\n' \
-                                '==== Secondary papers ====PAPERS2\n\n' \
-                                '**Contributors** CONTRIBUTOR'
+        self.root_namespace = 'tools:'
+        self.dw_page_template = wiki.pages.get(self.root_namespace+'pagetemplate')
         # which column will be used to create a page name (and its location on the Wiki)
         self.dw_page_name_column = 'Tool name'
         # under which namespace the pages will be placed
-        self.root_namespace = 'tools:'
+
 
     def automatic_construct_row(self, record):
         """
@@ -832,20 +834,6 @@ class CategoryTable(Table):
         self.wiki.pages.set(self.dw_table_page, new_page)
 
 
-class ExperimentTable(Table):
-
-    def __init__(self, wiki, base_name, table_name, user_key):
-        super(ExperimentTable, self).__init__(wiki, base_name, table_name, user_key)
-        self.airtable = at.Airtable(base_name, table_name, user_key)
-        self.records = self.airtable.get_all()
-        self.dw_table_page = 'tables:data_experiments'
-        self.included_in = 'iifwiki:dataexperiments'
-        self.main_column = 'Experiment'
-        self.columndefs = self.tabledefs[table_name]
-        self.header = self.construct_header(self.columndefs)
-        self.linked_pages = False
-
-
 class ExperienceTable(Table):
 
     def __init__(self, wiki, base_name, table_name, user_key):
@@ -895,6 +883,20 @@ class ExperienceTable(Table):
 
         formatted_row = "| " + " | ".join(concise_row) + " |\n"
         return formatted_row
+
+
+class ExperimentTable(Table):
+
+    def __init__(self, wiki, base_name, table_name, user_key):
+        super(ExperimentTable, self).__init__(wiki, base_name, table_name, user_key)
+        self.airtable = at.Airtable(base_name, table_name, user_key)
+        self.records = self.airtable.get_all()
+        self.dw_table_page = 'tables:data_experiments'
+        self.included_in = 'iifwiki:dataexperiments'
+        self.main_column = 'Experiment'
+        self.columndefs = self.tabledefs[table_name]
+        self.header = self.construct_header(self.columndefs)
+        self.linked_pages = False
 
 
 class ThirdSectorTable(Table):
