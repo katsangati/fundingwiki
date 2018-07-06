@@ -24,9 +24,14 @@ particular innovation tools and bibliographic references. The package provides a
 database and post it to the Wiki in various formats, i.e. as tables, pages or forms that can be filled in by users that
 wish to contribute.
 
-Currently only the database-to-wiki connection is implemented. That is, all the changes to the database-driven content
+Currently mostly the database-to-wiki connection is implemented. That is, all the changes to the database-driven content
 need to be done inside the database and then pushed to the wiki. In the future we plan to implement a wiki-to-database
-connection that would allow content from the wiki to be pushed to the database.
+connection that would allow content from the wiki to be pushed to the database. For the time being this connection
+exists only for page template definition, i.e. the template for each of the database-driven pages can be defined on the
+wiki and this gets fetched and used during page generation.
+
+Furthermore, we started implementing functions for the database-to-database manipulation, in which part of the columns
+can be updated based on other columns during regular wiki updates.
 
 Note: The package requires Python 3.
 

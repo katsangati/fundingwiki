@@ -68,10 +68,15 @@ Create a Papers table and a set of pages and push them to the local test Wiki::
 Automatic updating
 ===================
 
+
 In order to perform regular maintenance, a different script has to be run as follows::
 
     python3 update_all.py
 
 
 This will check all the defined tables for updated records and update the table published on the Wiki, as well as
-associated pages.
+associated pages. It will also perform a within-database maintenance. Currently this is implemented only for filling in
+bibliographic details in the Papers table.
+
+The updating script is run automatically on the server every Sunday. Therefore manual maintenance is no longer required
+but can be performed when needed.

@@ -1,0 +1,750 @@
+{
+  "TEST": {
+    "Name": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 1, "header": "Name"}
+    },
+    "Notes": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 2, "header": "Long notes"}
+    },
+    "Attachments": {
+      "type": "Attachment",
+      "table": {"publish": true, "pos": 3, "header": "Illustraion"}
+    },
+    "Checkbox": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 4, "header": "Checked"}
+    },
+    "Multselect": {
+      "type": "Multiple select",
+      "table": {"publish": true, "pos": 5, "header": "Options"}
+    },
+    "Singselect": {
+      "type": "Single select",
+      "table": {"publish": true, "pos": 6, "header": "Option"}
+    },
+    "Singcollab": {
+      "type": "Single collaborator",
+      "table": {"publish": true, "pos": 7, "header": "Written by"}
+    },
+    "Multcollab": {
+      "type": "Multiple collaborator",
+      "table": {"publish": true, "pos": 8, "header": "Reviewed by"}
+    },
+    "Date": {
+      "type": "Date",
+      "table": {"publish": true, "pos": 9, "header": "Date added"}
+    },
+    "Phone": {
+      "type": "Phone number",
+      "table": {"publish": true, "pos": 10, "header": "Contact number"}
+    },
+    "Email": {
+      "type": "Email",
+      "table": {"publish": true, "pos": 11, "header": "Contact email"}
+    },
+    "Link": {
+      "type": "URL",
+      "table": {"publish": false, "pos": 0, "header": ""}
+    },
+    "Num": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 13, "header": "Copies"}
+    },
+    "Currency": {
+      "type": "Currency",
+      "table": {"publish": true, "pos": 14, "header": "Cost"}
+    },
+    "Percent": {
+      "type": "Percent",
+      "table": {"publish": true, "pos": 15, "header": "Discount"}
+    },
+    "Duration": {
+      "type": "Duration",
+      "table": {"publish": true, "pos": 16, "header": "Sale duration"}
+    },
+    "Rating": {
+      "type": "Rating",
+      "table": {"publish": true, "pos": 17, "header": "Stars"}
+    },
+    "Linkedr": {
+      "type": "Link to another record",
+      "table": {"publish": true, "pos": 18, "header": "Linked products",
+      "linked_column_name": "Tool name"}
+    },
+    "Link_Name": {
+      "type": "External link",
+      "table": {"publish": true, "pos": 12, "header": "Reference",
+      "URL": "Link", "label_type": "field", "label": "Name"}
+    },
+    "Toolpage_Linkedr": {
+      "type": "Internal link",
+      "table": {"publish": true, "pos": 19, "header": "Tool page",
+      "namespace": "tools", "label": "Name", "replacement_label": null}
+    }
+  },
+
+  "Tools": {
+    "Tool name": {
+      "type": "Single line text",
+      "table": {"publish": false, "pos": 0, "header": "Tool name"},
+      "page": {"publish": true, "pos": 1, "placeholder": "TOOLNAME"}
+    },
+    "Toolpage_Toolname": {
+      "type": "Internal link",
+      "table": {"publish": true, "pos": 1, "header": "Tool name",
+      "namespace": "tools", "label": "Tool name", "replacement_label": null},
+      "page": {"publish": false, "pos": 0, "placeholder": "",
+      "namespace": "tools", "label": "Tool name", "replacement_label": null}
+    },
+    "Description": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 3, "header": "Description"},
+      "page": {"publish": true, "pos": 2, "placeholder": "DESCRIPTION"}
+    },
+    "Category": {
+      "type": "Raw",
+      "table": {"publish": true, "pos": 2, "header": "Category"},
+      "page": {"publish": true, "pos": 5, "placeholder": "CATEGORY"}
+    },
+    "subcat": {
+      "type": "Link to another record",
+      "table": {"publish": false, "pos": 0, "header": "subcat"},
+      "page": {"publish": true, "pos": 6, "placeholder": "SUBCATEGORY",
+      "linked_column_name": "(Sub)Category or theme"}
+    },
+    "Tool variation": {
+      "type": "Single line text",
+      "table": {"publish": false, "pos": 0, "header": "Tool variation"},
+      "page": {"publish": true, "pos": 4, "placeholder": "TOOLVAR"}
+    },
+    "AKA": {
+      "type": "Multiple select",
+      "table": {"publish": false, "pos": 0, "header": "AKA"},
+      "page": {"publish": true, "pos": 3, "placeholder": "AKA"}
+    },
+    "Findings summarized": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 4, "header": "Findings summarized"},
+      "page": {"publish": true, "pos": 10, "placeholder": "FINDINGS"}
+    },
+    "Full discussion": {
+      "type": "Long text",
+      "table": {"publish": false, "pos": 0, "header": "Full discussion"},
+      "page": {"publish": true, "pos": 11, "placeholder": "DISCUSSION"}
+    },
+    "Relevance to EA charities": {
+      "type": "Lookup",
+      "table": {"publish": false, "pos": 0, "header": "Relevance to EA charities"},
+      "page": {"publish": true, "pos": 12, "placeholder": "RELEVANCE"}
+    },
+    "key_papers": {
+      "type": "Raw",
+      "table": {"publish": true, "pos": 5, "header": "key_papers"},
+      "page": {"publish": true, "pos": 15, "placeholder": "PAPERS"}
+    },
+    "secondary papers": {
+      "type": "Raw",
+      "table": {"publish": false, "pos": 0, "header": "secondary papers"},
+      "page": {"publish": true, "pos": 16, "placeholder": "PAPERS2"}
+    },
+    "Theories": {
+      "type": "Link to another record",
+      "table": {"publish": false, "pos": 0, "header": "Theories"},
+      "page": {"publish": true, "pos": 7, "placeholder": "THEORIES",
+      "linked_column_name": "Theory"}
+    },
+    "Types of evidence": {
+      "type": "Lookup",
+      "table": {"publish": false, "pos": 0, "header": "Types of evidence"},
+      "page": {"publish": true, "pos": 8, "placeholder": "EVIDENCE"}
+    },
+    "Evidence strength": {
+      "type": "Number",
+      "table": {"publish": false, "pos": 0, "header": "Evidence strength"},
+      "page": {"publish": true, "pos": 9, "placeholder": "STRENGTH"}
+    },
+    "Contributors": {
+      "type": "Link to another record",
+      "table": {"publish": false, "pos": 0, "header": "Contributors"},
+      "page": {"publish": true, "pos": 17, "placeholder": "CONTRIBUTOR",
+      "linked_column_name": "Name, Institution"}
+    },
+    "Relevant use cases": {
+      "type": "Link to another record",
+      "table": {"publish": false, "pos": 0, "header": "Relevant use cases"},
+      "page": {"publish": true, "pos": 13, "placeholder": "CASES",
+      "linked_column_name": "Name"}
+    },
+    "Prevalence": {
+      "type": "Long text",
+      "table": {"publish": false, "pos": 0, "header": "Prevalence"},
+      "page": {"publish": true, "pos": 14, "placeholder": "PREVALENCE"}
+    }
+  },
+
+  "Giving_companies": {
+    "Company": {
+      "type": "Single line text",
+      "table": {"publish": false, "pos": 0, "header": "Company"},
+      "page": {"publish": true, "pos": 1, "placeholder": "COMPANY"}
+    },
+    "Sector": {
+      "type": "Single select",
+      "table": {"publish": true, "pos": 2, "header": "Sector"},
+      "page": {"publish": true, "pos": 2, "placeholder": "SECTOR"}
+    },
+    "Donation Matching": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 3, "header": "Donation Matching"},
+      "page": {"publish": true, "pos": 3, "placeholder": "MATCH"}
+    },
+    "Payroll Giving": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 4, "header": "Payroll Giving"},
+      "page": {"publish": true, "pos": 4, "placeholder": "PAYROLL"}
+    },
+    "Pays PG fees": {
+      "type": "Checkbox",
+      "table": {"publish": false, "pos": 0, "header": "Pays PG fees"},
+      "page": {"publish": true, "pos": 5, "placeholder": "FEES"}
+    },
+    "PG: provider name": {
+      "type": "Single select",
+      "table": {"publish": false, "pos": 0, "header": "PG provider"},
+      "page": {"publish": true, "pos": 6, "placeholder": "PROVIDER"}
+    },
+    "Details: Matching": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 5, "header": "DM Details"},
+      "page": {"publish": true, "pos": 8, "placeholder": "MATCH_DETAILS"}
+    },
+    "Details: Payroll giving": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 6, "header": "PG Details"},
+      "page": {"publish": true, "pos": 10, "placeholder": "PAYROLL_DETAILS"}
+    },
+    "Details: Other": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 7, "header": "Other Details"},
+      "page": {"publish": true, "pos": 11, "placeholder": "OTHER_DETAILS"}
+    },
+    "Endorsed charity(s)": {
+      "type": "Multiple select",
+      "table": {"publish": true, "pos": 8, "header": "Endorsed"},
+      "page": {"publish": true, "pos": 7, "placeholder": "ENDORSED"}
+    },
+    "Outcomes": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 9, "header": "Outcomes"},
+      "page": {"publish": true, "pos": 12, "placeholder": "OUTCOMES"}
+    },
+    "Total max EA-benefit": {
+      "type": "Currency",
+      "table": {"publish": true, "pos": 10, "header": "Total EA benefit"},
+      "page": {"publish": true, "pos": 9, "placeholder": "BENEFIT"}
+    },
+    "Reference link": {
+      "type": "URL",
+      "table": {"publish": false, "pos": 0, "header": "Link"},
+      "page": {"publish": false, "pos": 0, "placeholder": "COMPANY"}
+    },
+    "Reference": {
+      "type": "Single line text",
+      "table": {"publish": false, "pos": 0, "header": "Reference"},
+      "page": {"publish": false, "pos": 0, "placeholder": ""}
+    },
+    "Other links": {
+      "type": "Raw",
+      "table": {"publish": false, "pos": 0, "header": "Links"},
+      "page": {"publish": true, "pos": 14, "placeholder": "LINKS"}
+    },
+    "Link_Reference": {
+      "type": "External link",
+      "table": {"publish": true, "pos": 11, "header": "Reference",
+      "URL": "Reference link", "label_type": "field", "label": "Reference"},
+      "page": {"publish": true, "pos": 13, "placeholder": "REF",
+      "URL": "Reference link", "label_type": "field", "label": "Reference"}
+    },
+    "Companypage_Company": {
+      "type": "Internal link",
+      "table": {"publish": true, "pos": 1, "header": "Company",
+      "namespace": "companies", "label": "Company", "replacement_label": null},
+      "page": {"publish": false, "pos": 0, "placeholder": "",
+      "namespace": "companies", "label": "Company", "replacement_label": null}
+    }
+  },
+
+  "papers_mass_qualitative": {
+    "PaperPage_Parencite": {
+      "type": "Internal link",
+      "table": {"publish": true, "pos": 1, "header": "Reference",
+      "namespace": "papers", "label": "Title", "replacement_label": "parencite"},
+      "page": {"publish": false, "pos": 0, "placeholder": "REF",
+      "namespace": "papers", "label": "Title", "replacement_label": "parencite"}
+    },
+    "Reference": {
+      "type": "Single line text",
+      "table": {"publish": false, "pos": 2, "header": "Title"},
+      "page": {"publish": true, "pos": 2, "placeholder": "REFERENCE"}
+    },
+    "Title": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 2, "header": "Title"},
+      "page": {"publish": true, "pos": 1, "placeholder": "PAPERTITLE"}
+    },
+    "Discussion/findings": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 4, "header": "Discussion"},
+      "page": {"publish": true, "pos": 13, "placeholder": "DISCUSSION"}
+    },
+    "tools": {
+      "type": "Raw",
+      "table": {"publish": true, "pos": 5, "header": "Tools"},
+      "page": {"publish": true, "pos": 7, "placeholder": "TOOLS"}
+    },
+    "Type of evidence": {
+      "type": "Multiple select",
+      "table": {"publish": true, "pos": 3, "header": "Type of evidence"},
+      "page": {"publish": true, "pos": 6, "placeholder": "EVIDENCE"}
+    },
+    "Fulltext_Link": {
+      "type": "External link",
+      "table": {"publish": true, "pos": 6, "header": "Link",
+      "URL": "URL", "label_type": "fixed", "label": "Full text"},
+      "page": {"publish": false, "pos": 0, "placeholder": ""}
+    },
+    "illustration": {
+      "type": "Attachment",
+      "table": {"publish": false, "pos": 0, "header": ""},
+      "page": {"publish": true, "pos": 3, "placeholder": "ILLUSTRATION"}
+    },
+    "keywords": {
+      "type": "Multiple select",
+      "table": {"publish": false, "pos": 0, "header": ""},
+      "page": {"publish": true, "pos": 4, "placeholder": "KEYWORDS"}
+    },
+    "Charity-target": {
+      "type": "Multiple select",
+      "table": {"publish": false, "pos": 0, "header": ""},
+      "page": {"publish": true, "pos": 10, "placeholder": "TARGETS"}
+    },
+    "Donor population": {
+      "type": "Multiple select",
+      "table": {"publish": false, "pos": 0, "header": ""},
+      "page": {"publish": true, "pos": 11, "placeholder": "DONORS"}
+    },
+    "Discipline/field": {
+      "type": "Single select",
+      "table": {"publish": false, "pos": 0, "header": ""},
+      "page": {"publish": true, "pos": 5, "placeholder": "DISCIPLINE"}
+    },
+    "Wiki-notes": {
+      "type": "Long text",
+      "table": {"publish": false, "pos": 0, "header": ""},
+      "page": {"publish": true, "pos": 12, "placeholder": "SUMMARY"}
+    },
+    "Evaluation": {
+      "type": "Long text",
+      "table": {"publish": false, "pos": 0, "header": ""},
+      "page": {"publish": true, "pos": 14, "placeholder": "EVALUATION"}
+    },
+    "Added by": {
+      "type": "Link to another record",
+      "table": {"publish": false, "pos": 0, "header": ""},
+      "page": {"publish": true, "pos": 16, "placeholder": "CREATORS",
+      "linked_column_name": "Name, Institution"}
+    },
+    "Theories": {
+      "type": "Link to another record",
+      "table": {"publish": false, "pos": 0, "header": ""},
+      "page": {"publish": true, "pos": 8, "placeholder": "THEORIES",
+      "linked_column_name": "Theory"}
+    },
+    "critiques": {
+      "type": "Link to another record",
+      "table": {"publish": false, "pos": 0, "header": ""},
+      "page": {"publish": true, "pos": 9, "placeholder": "CRITIQUES",
+      "linked_column_name": "Name"}
+    },
+    "meta": {
+      "type": "Raw",
+      "table": {"publish": false, "pos": 0, "header": ""},
+      "page": {"publish": true, "pos": 15, "placeholder": "META"}
+    }
+  },
+
+  "papers_mass_quantitative": {
+    "PaperPage_Parencite": {
+      "type": "Internal link",
+      "table": {"publish": true, "pos": 1, "header": "Reference",
+      "namespace": "papers", "label": "Title", "replacement_label": "parencite"}
+    },
+    "year_run": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 2, "header": "Study year"}
+    },
+    "Link to raw data": {
+      "type": "Link to another record",
+      "table": {"publish": true, "pos": 3, "header": "Data link",
+      "linked_column_name": "Name"}
+    },
+    "Peer-reviewed pub?": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 4, "header": "Peer reviewed"}
+    },
+    "Journal rating (1-5)": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 5, "header": "Journal rating"}
+    },
+    "num_citations": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 6, "header": "Citations"}
+    },
+    "Exact replications link?": {
+      "type": "Link to another record",
+      "table": {"publish": true, "pos": 7, "header": "Replications",
+      "linked_column_name": "parencite"}
+    },
+    "Replication success?": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 8, "header": "Replication success"}
+    },
+    "Preregistered?": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 9, "header": "Pre-registered"}
+    },
+    "Verified collection?": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 10, "header": "Verified"}
+    },
+    "Participants aware?": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 11, "header": "Participants aware"}
+    },
+    "Sample demog?": {
+      "type": "Multiple select",
+      "table": {"publish": true, "pos": 12, "header": "Demographics"}
+    },
+    "Between-subject design?": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 13, "header": "Design"}
+    },
+    "Simple_comparison?": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 14, "header": "Simple comparison"}
+    },
+    "Sample size": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 15, "header": "Sample size"}
+    },
+    "Share treated": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 16, "header": "Share treated"}
+    },
+    "Key components of ask": {
+      "type": "Multiple select",
+      "table": {"publish": true, "pos": 17, "header": "Key components"}
+    },
+    "Main treatment": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 18, "header": "Main treatment"}
+    },
+    "Mean don (usd-2018); control group": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 19, "header": "Mean donation"}
+    },
+    "SD: don": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 20, "header": "SD donation",
+      "linked_column_name": "Tool name"}
+    },
+    "Endowment (usd-2018)": {
+      "type": "Currency",
+      "table": {"publish": true, "pos": 21, "header": "Endowment amount"}
+    },
+    "Endowment_description": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 22, "header": "Endowment description"}
+    },
+    "Currency": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 22, "header": "Currency"}
+    },
+    "conversion": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 23, "header": "Conversion rate"}
+    },
+    "Effect-size-original-units": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 24, "header": "Effect size original"}
+    },
+    "Effect size (USD-2018)": {
+      "type": "Currency",
+      "table": {"publish": true, "pos": 25, "header": "Effect size USD"}
+    },
+    "SE of effect size": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 26, "header": "SE effect size"}
+    },
+    "SE calc method": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 27, "header": "SE calculation"}
+    },
+    "Effect size (Share of mean donation)": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 28, "header": "Effect size share"}
+    },
+    "Mean incidence": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 29, "header": "Mean incidence"}
+    },
+    "Effect size (incidence)": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 30, "header": "Effect size incidence"}
+    },
+    "Headline p-value": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 31, "header": "Headline p-val"}
+    },
+    "Describe headline p-val": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 32, "header": "P-val description"}
+    }
+  },
+
+  "Categories": {
+    "(Sub)Category or theme": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 1, "header": "Category"}
+    },
+    "Nested in": {
+      "type": "Link to another record",
+      "table": {"publish": false, "pos": 2, "header": "Nested"}
+    },
+    "Schema": {
+      "type": "Multiple select",
+      "table": {"publish": false, "pos": 3, "header": "Schema"}
+    },
+    "Description": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 4, "header": "Description"}
+    },
+    "Tools": {
+      "type": "Single line text",
+      "table": {"publish": false, "pos": 5, "header": "Tools"}
+    },
+    "Barriers": {
+      "type": "Single line text",
+      "table": {"publish": false, "pos": 6, "header": "Barriers"}
+    },
+    "Papers": {
+      "type": "Link to another record",
+      "table": {"publish": false, "pos": 7, "header": "Papers"}
+    },
+    "Theories": {
+      "type": "Link to another record",
+      "table": {"publish": false, "pos": 8, "header": "Theories"}
+    }
+  },
+
+  "Charity_experiments": {
+    "Experiment": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 1, "header": "Experiment"}
+    },
+    "N": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 2, "header": "N"}
+    },
+    "Endowment": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 3, "header": "Endowment"}
+    },
+    "Share donating": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 4, "header": "Share donating"}
+    },
+    "Share donated": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 5, "header": "Share donated"}
+    },
+    "Mean donation": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 6, "header": "Mean donation"}
+    },
+    "SD": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 7, "header": "SD"}
+    },
+    "SD/Mean": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 8, "header": "SD/Mean"}
+    },
+    "Effect Size %": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 9, "header": "Effect Size"}
+    },
+    "References": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 10, "header": "References"}
+    }
+  },
+
+  "Experiences": {
+    "Name": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 1, "header": "Name"}
+    },
+    "Role": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 2, "header": "Name"}
+    },
+    "Organisation": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 3, "header": "Organisation"}
+    },
+    "Organisation type": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 4, "header": "Organisation"}
+    },
+    "Number of employees": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 5, "header": "Employees"}
+    },
+    "Experience type": {
+      "type": "Single select",
+      "table": {"publish": false, "pos": 0, "header": "Experience type"}
+    },
+    "Charity": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 6, "header": "Charity"}
+    },
+    "Event description": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 7, "header": "Description"}
+    },
+    "Number of participants": {
+      "type": "Number",
+      "table": {"publish": true, "pos": 8, "header": "Participants",
+        "URL": "Link", "label_type": "field", "label": "Name"}
+    },
+    "Amount raised": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 9, "header": "Raised"}
+    },
+    "Choice motivation": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 10, "header": "Results"}
+    },
+    "Communication channel": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 11, "header": "Results"}
+    },
+    "Main arguments": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 12, "header": "Results"}
+    },
+    "Problems faced": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 13, "header": "Results"}
+    },
+    "Evaluation": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 14, "header": "Results"}
+    },
+    "Comments": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 15, "header": "Results"}
+    },
+    "Donation choice": {
+      "type": "Single line text",
+      "table": {"publish": false, "pos": 0, "header": "Results"}
+    }
+  },
+
+  "Third_sector": {
+    "Name": {
+      "type": "Single line text",
+      "table": {"publish": false, "pos": 0, "header": "Name"}
+    },
+    "Link": {
+      "type": "URL",
+      "table": {"publish": false, "pos": 0, "header": "Link"}
+    },
+    "Target": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 2, "header": "Whom does it help?"}
+    },
+    "Role": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 3, "header": "Role"}
+    },
+    "Example activity": {
+      "type": "Long text",
+      "table": {"publish": true, "pos": 4, "header": "Example activity"}
+    },
+    "Size": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 5, "header": "Size"}
+    },
+    "Established": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 6, "header": "Established"}
+    },
+    "CEO/Chairman": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 7, "header": "CEO/Chairman"}
+    },
+    "Link_Name": {
+      "type": "External link",
+      "table": {"publish": true, "pos": 1, "header": "Name",
+      "URL": "Link", "label_type": "field", "label": "Name"}
+    }
+  },
+
+  "effective_charities_rated": {
+    "charity_name": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 1, "header": "Charity Name"}
+    },
+    "regno": {
+      "type": "Single line text",
+      "table": {"publish": false, "pos": 2, "header": "Registration Number"}
+    },
+    "justgiving_id": {
+      "type": "Single line text",
+      "table": {"publish": false, "pos": 3, "header": "Just Giving ID"}
+    },
+    "cause_area": {
+      "type": "Single line text",
+      "table": {"publish": true, "pos": 4, "header": "Cause area"}
+    },
+    "rated_by": {
+      "type": "Link to another record",
+      "table": {"publish": false, "pos": 5, "header": "Rater",
+      "linked_column_name": "Rater"}
+    },
+    "eaf": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 6, "header": "EAF"}
+    },
+    "give_well_top_2017": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 7, "header": "GiveWell Top'17"}
+    },
+    "give_well_standout_2017": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 8, "header": "GiveWell Standout'17"}
+    },
+    "life_you_can_save": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 9, "header": "Life You Can Save"}
+    },
+    "ace": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 10, "header": "ACE"}
+    }
+  }
+}
