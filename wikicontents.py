@@ -497,24 +497,9 @@ class FtseTable(Table):
         self.header = self.construct_header(self.columndefs)
         self.placeholders = self.construct_placeholders(self.columndefs)
         self.linked_pages = True
-        self.dw_page_template = '====COMPANY====\n\\\\\n' \
-                                '**Sector**: SECTOR\n\n' \
-                                '**Donation matching**: MATCH\n\n' \
-                                '**Payroll giving**: PAYROLL\n\n' \
-                                '**Pays PG fees**: FEES\n\n' \
-                                '**PG provider**: PROVIDER\n\n' \
-                                '**Endorsed charities**: ENDORSED\n\\\\\n\\\\\n' \
-                                '===Details of matching schemes===\n\nMATCH_DETAILS\n\n' \
-                                '**Total max EA benefit**: BENEFIT\n\\\\\n\\\\\n' \
-                                '===Details of payroll giving and other programmes===\n\n' \
-                                'PAYROLL_DETAILS\n\\\\\n\\\\\n' \
-                                '===Other relevant information===\n\nOTHER_DETAILS\n\\\\\n\\\\\n' \
-                                '===Outcomes===\n\nOUTCOMES\n\\\\\n\\\\\n' \
-                                '===Sources, links to further information===\n\n' \
-                                '\n\n  * REF \n' \
-                                'LINKS\n\\\\\n'
-        self.dw_page_name_column = 'Company'
         self.root_namespace = 'companies:'
+        self.dw_page_template = wiki.pages.get(self.root_namespace + 'pagetemplate')
+        self.dw_page_name_column = 'Company'
         self.company_group = company_group  # (str) use this to differentiate between FTSE companies and other
         self.dw_table_page = 'tables:employee_giving_schemes_' + self.company_group
 
@@ -582,24 +567,9 @@ class PapersTable(Table):
         self.header = self.construct_header(self.columndefs)
         self.placeholders = self.construct_placeholders(self.columndefs)
         self.linked_pages = True
-        self.dw_page_template = '====PAPERTITLE====\n\n' \
-                                'REFERENCE\n\n' \
-                                'ILLUSTRATION' \
-                                '**Keywords**: KEYWORDS\n\n' \
-                                '**Discipline**: DISCIPLINE\n\n' \
-                                '**Type of evidence**: EVIDENCE\n\n' \
-                                '**Related tools**: TOOLS\n\n' \
-                                '**Related theories**: THEORIES\n\n' \
-                                '**Related critiques**: CRITIQUES\n\n' \
-                                '**Charity target**: TARGETS\n\n' \
-                                '**Donor population**: DONORS\n\\\\\n\\\\\n' \
-                                '===Paper summary===\n\nSUMMARY\n\\\\\n' \
-                                '===Discussion===\n\nDISCUSSION\n\\\\\n' \
-                                '===Evaluation===\n\nEVALUATION\n\\\\\n' \
-                                'META\n\\\\\n' \
-                                'This paper has been added by CREATORS'  # and evaluated by EVALUATORS'
-        self.dw_page_name_column = 'Title'
         self.root_namespace = 'papers:'
+        self.dw_page_template = wiki.pages.get(self.root_namespace + 'pagetemplate')
+        self.dw_page_name_column = 'Title'
 
     def automatic_construct_row(self, record):
         """
