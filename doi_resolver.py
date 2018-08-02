@@ -1,12 +1,13 @@
 import requests
 from habanero import counts
 from habanero import Crossref
-import scholar.scholar as sch
 
-querier = sch.ScholarQuerier()
-settings = sch.ScholarSettings()
-settings.set_citation_format(4) #4 is for BibTex
-querier.apply_settings(settings)
+# import scholar.scholar as sch
+#
+# querier = sch.ScholarQuerier()
+# settings = sch.ScholarSettings()
+# settings.set_citation_format(4) #4 is for BibTex
+# querier.apply_settings(settings)
 
 
 def doi2bib(doi):
@@ -36,13 +37,13 @@ def title2doi(title):
             return r['DOI']
 
 
-def title2bib(title):
-    query = sch.SearchScholarQuery()
-    query.set_words(title)
-    query.set_num_page_results(1)
-    querier.send_query(query)
-    if len(querier.articles) > 0:
-        bib = querier.articles[0].citation_data
-        return bib.decode('utf-8')
-    else:
-        return ""
+# def title2bib(title):
+#     query = sch.SearchScholarQuery()
+#     query.set_words(title)
+#     query.set_num_page_results(1)
+#     querier.send_query(query)
+#     if len(querier.articles) > 0:
+#         bib = querier.articles[0].citation_data
+#         return bib.decode('utf-8')
+#     else:
+#         return ""

@@ -1,6 +1,7 @@
 airtable-python-wrapper==0.11.0
 alabaster==0.7.10
 Babel==2.5.3
+beautifulsoup4==4.6.0
 certifi==2018.1.18
 chardet==3.0.4
 docutils==0.14
@@ -12,6 +13,7 @@ Jinja2==2.10
 latexcodec==1.0.5
 MarkupSafe==1.0
 packaging==17.1
+pybtex==0.21
 Pygments==2.2.0
 pyparsing==2.2.0
 pytz==2018.4
