@@ -43,7 +43,7 @@ class WikiManager:
             self.defined_tables = ['Tools', 'Charity_experiments', 'Giving_companies_ftse', 'Giving_companies_other',
                                    'Experiences', 'Third_sector', 'papers_mass_qualitative',
                                    'papers_mass_quantitative', 'Categories']
-            self.maintained_tables = ['papers_mass']
+            self.maintained_tables = ['papers_mass_qualitative']
 
     def setup_table(self, table_name):
         """Initialize the connection to a given table in Airtable.
