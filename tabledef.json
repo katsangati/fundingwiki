@@ -190,19 +190,25 @@
       "table": {"publish": false, "pos": 0, "header": "Company"},
       "page": {"publish": true, "pos": 1, "placeholder": "COMPANY"}
     },
+
     "Sector": {
       "type": "Single select",
       "table": {"publish": true, "pos": 2, "header": "Sector"},
       "page": {"publish": true, "pos": 2, "placeholder": "SECTOR"}
     },
+    "Total max EA-benefit": {
+      "type": "Currency",
+      "table": {"publish": true, "pos": 3, "header": "Total EA benefit"},
+      "page": {"publish": true, "pos": 9, "placeholder": "BENEFIT"}
+    },
     "Donation Matching": {
       "type": "Checkbox",
-      "table": {"publish": true, "pos": 3, "header": "Donation Matching"},
+      "table": {"publish": true, "pos": 5, "header": "Donation Matching"},
       "page": {"publish": true, "pos": 3, "placeholder": "MATCH"}
     },
     "Payroll Giving": {
       "type": "Checkbox",
-      "table": {"publish": true, "pos": 4, "header": "Payroll Giving"},
+      "table": {"publish": true, "pos": 6, "header": "Payroll Giving"},
       "page": {"publish": true, "pos": 4, "placeholder": "PAYROLL"}
     },
     "Pays PG fees": {
@@ -217,33 +223,33 @@
     },
     "Details: Matching": {
       "type": "Long text",
-      "table": {"publish": true, "pos": 5, "header": "DM Details"},
+      "table": {"publish": false, "pos": 0, "header": "Match Details"},
       "page": {"publish": true, "pos": 8, "placeholder": "MATCH_DETAILS"}
     },
     "Details: Payroll giving": {
       "type": "Long text",
-      "table": {"publish": true, "pos": 6, "header": "PG Details"},
+      "table": {"publish": false, "pos": 8, "header": "PG Details"},
       "page": {"publish": true, "pos": 10, "placeholder": "PAYROLL_DETAILS"}
     },
     "Details: Other": {
       "type": "Long text",
-      "table": {"publish": true, "pos": 7, "header": "Other Details"},
+      "table": {"publish": false, "pos": 9, "header": "Other Details"},
       "page": {"publish": true, "pos": 11, "placeholder": "OTHER_DETAILS"}
     },
     "Endorsed charity(s)": {
       "type": "Multiple select",
-      "table": {"publish": true, "pos": 8, "header": "Endorsed"},
+      "table": {"publish": true, "pos":10, "header": "Endorsed charities?"},
       "page": {"publish": true, "pos": 7, "placeholder": "ENDORSED"}
     },
     "Outcomes": {
       "type": "Long text",
-      "table": {"publish": true, "pos": 9, "header": "Outcomes"},
+      "table": {"publish": true, "pos": 10, "header": "Outcomes"},
       "page": {"publish": true, "pos": 12, "placeholder": "OUTCOMES"}
     },
-    "Total max EA-benefit": {
-      "type": "Currency",
-      "table": {"publish": true, "pos": 10, "header": "Total EA benefit"},
-      "page": {"publish": true, "pos": 9, "placeholder": "BENEFIT"}
+    "Promising or EA/internationally interested": {
+      "type": "Checkbox",
+      "table": {"publish": true, "pos": 4, "header": "EA-promising"},
+      "page": {"publish": false, "pos": 0, "placeholder": "PROMISING"}
     },
     "Reference link": {
       "type": "URL",
@@ -262,14 +268,14 @@
     },
     "Link_Reference": {
       "type": "External link",
-      "table": {"publish": true, "pos": 11, "header": "Reference",
+      "table": {"publish": true, "pos": 12, "header": "Reference",
       "URL": "Reference link", "label_type": "field", "label": "Reference"},
       "page": {"publish": true, "pos": 13, "placeholder": "REF",
       "URL": "Reference link", "label_type": "field", "label": "Reference"}
     },
     "Companypage_Company": {
       "type": "Internal link",
-      "table": {"publish": true, "pos": 1, "header": "Company",
+      "table": {"publish": true, "pos": 1, "header": "Company (click for more info)",
       "namespace": "companies", "label": "Company", "replacement_label": null},
       "page": {"publish": false, "pos": 0, "placeholder": "",
       "namespace": "companies", "label": "Company", "replacement_label": null}
