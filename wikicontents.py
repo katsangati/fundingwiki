@@ -460,7 +460,7 @@ class ToolTable(Table):
         variables[paper_pos] = make_bullets(papers)
 
         secondary_pos = self.columndefs['secondary papers']['page']['pos'] - 1
-        secondary_papers = get_paper_links(self.airtable, variables[secondary_pos], 'title', True)
+        secondary_papers = get_paper_links(self.airtable, variables[secondary_pos], '', True)
         variables[secondary_pos] = make_bullets(secondary_papers)
 
         keys = self.placeholders
