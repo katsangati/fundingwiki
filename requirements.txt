@@ -5,6 +5,7 @@ beautifulsoup4==4.7.1
 certifi==2019.3.9
 chardet==3.0.4
 docutils==0.14
+dokuwiki==1.1.0
 habanero==0.6.2
 idna==2.8
 imagesize==1.1.0
