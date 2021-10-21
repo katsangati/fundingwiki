@@ -1,6 +1,6 @@
 airtable-python-wrapper==0.11.3.post1
 alabaster==0.7.12
-Babel==2.6.0
+Babel==2.9.1
 beautifulsoup4==4.7.1
 certifi==2019.3.9
 chardet==3.0.4
